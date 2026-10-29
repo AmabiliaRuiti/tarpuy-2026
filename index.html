@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trayectorias reales, recorridos posibles</title>
+<style>
+  /* Funciona sin conexión: sin fuentes, scripts ni imágenes externas. */
+  :root{
+    --azul:#14284b; --azul-m:#2f5d9a; --azul-c:#3f6fae;
+    --oro:#b8924a;          /* dorado decorativo: líneas, círculos */
+    --oro-t:#7d5e22;        /* dorado para texto sobre fondo claro (contraste 5,3:1) */
+    --oro-2:#d6b46f;        /* dorado para texto sobre fondo azul (7,4:1) */
+    --oro-claro:#efe2c4;
+    --papel:#f4f1ea; --tinta:#1a2236; --tenue:#4f586c;
+    --serif: Georgia, "Iowan Old Style", Cambria, "Times New Roman", serif;
+    --sans: "Segoe UI", Calibri, "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--azul);overflow:hidden;font-family:var(--sans);color:var(--tinta)}
+  #stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;background:var(--papel);overflow:hidden}
+  .ico{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+  /* ---------- Encabezado ---------- */
+  header{position:absolute;left:0;right:0;top:0;height:104px;display:flex;align-items:center;gap:22px;padding:0 64px;z-index:30;border-bottom:1px solid rgba(20,40,75,.12);background:var(--papel)}
+  header img{width:64px;height:64px;object-fit:contain}
+  header .inst{line-height:1.2}
+  header .inst b{display:block;font-size:22px;color:var(--azul)}
+  header .inst span{font-size:18px;color:var(--tenue)}
+  header .evento{margin-left:auto;text-align:right;font-size:17px;letter-spacing:.14em;text-transform:uppercase;color:var(--oro-t);font-weight:700;line-height:1.5}
+  header .evento span{display:block;color:var(--tenue);letter-spacing:.08em;font-weight:500}
+
+  /* ---------- Mundo (vista circular) ---------- */
+  #world{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;transition:transform 900ms cubic-bezier(.65,0,.25,1),opacity 600ms ease}
+  #world svg.mapa{position:absolute;inset:0}
+  .ring{fill:none;transition:stroke-width 600ms, opacity 600ms}
+  .ripple{fill:none;stroke:var(--oro);stroke-width:2;opacity:0;transform-origin:990px 590px;animation:onda 6s ease-out infinite}
+  .ripple.r2{animation-delay:2s}.ripple.r3{animation-delay:4s}
+  @keyframes onda{0%{transform:scale(.45);opacity:.45}100%{transform:scale(2.1);opacity:0}}
+  body.en-estacion .ripple{animation-play-state:paused;opacity:0}
+
+  .nodo{position:absolute;transform:translate(-50%,-50%);border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--serif);transition:transform 220ms ease, box-shadow 220ms ease, background-color 400ms, color 400ms}
+  .nodo.n1{width:250px;height:250px;background:var(--azul);color:var(--papel);flex-direction:column;gap:6px;box-shadow:0 0 0 10px var(--papel),0 0 0 12px var(--oro)}
+  .nodo.n1 .num{font-size:64px;color:var(--oro-2);line-height:1}
+  .nodo.n1 .lab{font-family:var(--sans);font-size:19px;letter-spacing:.12em;text-transform:uppercase;line-height:1.3;text-align:center;font-weight:600}
+  .nodo.sat{width:124px;height:124px;background:var(--papel);font-size:58px;border:3px solid currentColor}
+  .nodo.n2,.nodo.n3{color:var(--azul-m)} .nodo.n4{color:var(--azul-c)}
+  .nodo.n5{color:var(--oro-t);border:3px dashed var(--oro)}
+  .nodo.visto.n2,.nodo.visto.n3{background:var(--azul-m);color:#fff;border-color:var(--azul-m)}
+  .nodo.visto.n4{background:var(--azul-c);color:#fff;border-color:var(--azul-c)}
+  .nodo.visto.n5{background:var(--oro);color:#fff;border-color:var(--oro)}
+  .nodo.siguiente{animation:latido 1.8s ease-in-out infinite}
+  @keyframes latido{0%,100%{box-shadow:0 0 0 0 rgba(184,146,74,.55)}50%{box-shadow:0 0 0 18px rgba(184,146,74,0)}}
+  .nodo.n1.siguiente{animation:latido1 1.8s ease-in-out infinite}
+  @keyframes latido1{0%,100%{box-shadow:0 0 0 10px var(--papel),0 0 0 12px var(--oro),0 0 0 12px rgba(184,146,74,.5)}50%{box-shadow:0 0 0 10px var(--papel),0 0 0 12px var(--oro),0 0 0 32px rgba(184,146,74,0)}}
+  body.cierre .nodo.n2,body.cierre .nodo.n3{background:var(--azul-m);color:#fff;border-color:var(--azul-m)}
+  body.cierre .nodo.n4{background:var(--azul-c);color:#fff;border-color:var(--azul-c)}
+  body.cierre .nodo.n5{background:var(--oro);color:#fff;border-color:var(--oro)}
+  body.cierre .ring{stroke-width:5}
+  .etq{position:absolute;background:var(--papel);padding:4px 10px;font-size:20px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--azul);white-space:nowrap;pointer-events:none}
+
+  #portada-izq,#cierre{position:absolute;left:72px;top:190px;width:440px;transition:opacity 500ms ease}
+  .kick{font-size:17px;letter-spacing:.18em;text-transform:uppercase;color:var(--oro-t);font-weight:700}
+  #portada-izq h1,#cierre h1{font-family:var(--serif);font-weight:400;font-size:62px;line-height:1.08;color:var(--azul);margin:20px 0 22px}
+  #portada-izq p{font-size:25px;line-height:1.4}
+  #portada-izq .autoras{margin-top:34px;padding-top:22px;border-top:2px solid var(--oro);font-size:22px;line-height:1.6;color:var(--azul)}
+  #portada-izq .autoras span{display:block;font-size:18px;color:var(--tenue)}
+  #cierre p{font-size:26px;line-height:1.45;color:var(--tinta)}
+  #cierre .contacto{margin-top:30px;padding-top:22px;border-top:2px solid var(--oro);font-size:21px;line-height:1.7;color:var(--azul)}
+  #cierre .contacto span{display:block;font-size:17px;letter-spacing:.14em;text-transform:uppercase;color:var(--tenue);font-weight:700;margin-bottom:6px}
+  #portada-der{position:absolute;right:64px;top:410px;width:330px;transition:opacity 500ms ease}
+  #portada-der .kicker{font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--tenue);font-weight:700;margin-bottom:18px}
+  #portada-der ol{list-style:none}
+  #portada-der li{display:flex;gap:14px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(20,40,75,.13);font-size:21px;color:var(--azul);cursor:pointer;transition:transform 220ms ease,color 220ms}
+  #portada-der li b{font-family:var(--serif);font-size:30px;color:var(--oro-t);font-weight:400;width:26px}
+  #portada-der .tip{margin-top:26px;font-size:15px;color:var(--tenue);line-height:1.7}
+  kbd{font-family:var(--sans);font-size:13px;border:1px solid rgba(20,40,75,.3);border-bottom-width:2px;border-radius:4px;padding:1px 6px;background:#fff;color:var(--azul)}
+  #cierre{opacity:0;pointer-events:none}
+  body.cierre #cierre{opacity:1;pointer-events:auto}
+  body.cierre #portada-izq, body.en-estacion #portada-izq, body.en-estacion #portada-der{opacity:0;pointer-events:none}
+
+  /* ---------- Panel de estación ---------- */
+  #panel{position:absolute;left:0;top:104px;width:1920px;height:976px;background:rgba(244,241,234,.95);opacity:0;pointer-events:none;transition:opacity 450ms ease;z-index:20}
+  body.en-estacion #panel{opacity:1;pointer-events:auto}
+  .est{position:absolute;inset:0;padding:56px 96px 120px;display:grid;grid-template-columns:640px 1fr;gap:80px;opacity:0;transform:translateY(18px);transition:opacity 450ms ease,transform 450ms ease;pointer-events:none}
+  .est.activa{opacity:1;transform:none;pointer-events:auto;transition-delay:250ms}
+  .est[data-est="1"]{--acento:var(--azul)}
+  .est[data-est="2"],.est[data-est="3"]{--acento:var(--azul-m)}
+  .est[data-est="4"]{--acento:var(--azul-c)}
+  .est[data-est="5"]{--acento:var(--oro-t)}
+  .izq{display:flex;flex-direction:column}
+  .izq .numero{font-family:var(--serif);font-size:140px;line-height:.9;color:var(--acento)}
+  .izq .kicker{display:flex;align-items:center;gap:14px;font-size:18px;letter-spacing:.18em;text-transform:uppercase;color:var(--tenue);font-weight:700;margin:16px 0 24px}
+  .izq .kicker::before{content:"";width:36px;height:4px;background:var(--acento);border-radius:2px}
+  .izq .tesis{font-family:var(--serif);font-size:50px;line-height:1.16;color:var(--azul)}
+  .izq .tesis em{font-style:normal;color:var(--oro-t)}
+  .ondas-izq{margin-top:auto;padding-top:20px}
+  .ondas-izq svg{width:170px;height:170px;display:block}
+  .izq .pie{margin-top:22px;font-size:23px;line-height:1.45;color:var(--tinta);padding-left:20px;border-left:4px solid var(--acento)}
+  .der{display:flex;flex-direction:column;gap:22px;justify-content:center}
+  .bloque{background:#fff;border:1px solid rgba(20,40,75,.12);border-top:4px solid var(--acento);border-radius:6px;padding:22px 30px}
+  .bloque h3,.titulo-rec{font-size:17px;letter-spacing:.16em;text-transform:uppercase;color:var(--oro-t);font-weight:700;margin-bottom:10px}
+  .bloque p,.bloque li{font-size:25px;line-height:1.42;color:var(--tinta)}
+  .bloque ul{list-style:none}
+  .bloque li{padding-left:26px;position:relative;margin:6px 0}
+  .bloque li::before{content:"";position:absolute;left:2px;top:15px;width:10px;height:10px;border-radius:50%;background:var(--oro)}
+  .bloque.azul{background:var(--azul);border-color:var(--azul);border-top-color:var(--oro)}
+  .bloque.azul h3{color:var(--oro-2)} .bloque.azul p{color:var(--papel);font-family:var(--serif);font-size:30px;line-height:1.32}
+  .fila{display:grid;gap:20px}
+  .c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:1fr 1fr 1fr}
+  .letra{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--acento);color:#fff;font-size:18px;font-weight:700;margin-right:12px;flex:none}
+  .diag p{display:flex;align-items:flex-start;font-size:23px;line-height:1.38}
+  .diag p+p{margin-top:12px}
+
+  /* aparición progresiva */
+  .frag{opacity:0;transform:translateY(16px);transition:opacity 450ms ease 300ms,transform 450ms ease 300ms}
+  .frag.visible{opacity:1;transform:none}
+
+  /* línea de tiempo (estación 3) */
+  .tiempo{display:grid;grid-template-columns:repeat(5,1fr);position:relative;margin:4px 0 2px}
+  .tiempo::before{content:"";position:absolute;left:4%;right:4%;top:15px;height:3px;background:var(--oro-claro)}
+  .tiempo div{position:relative;text-align:center;font-size:20px;line-height:1.3;color:var(--azul);font-weight:600;padding:0 6px}
+  .tiempo div::before{content:"";display:block;width:22px;height:22px;border-radius:50%;background:var(--papel);border:4px solid var(--oro);margin:4px auto 12px}
+  .tiempo div.clave::before{background:var(--oro)}
+  .tiempo span{display:block;font-weight:400;color:var(--tenue);font-size:18px}
+  .pasos{display:flex;gap:14px;align-items:center;font-family:var(--serif);font-size:27px;color:var(--azul);flex-wrap:wrap}
+  .pasos i{font-style:normal;color:var(--oro-t)}
+  .pasos small{font-family:var(--sans);font-size:21px;color:var(--tenue)}
+  .rec{background:#fff;border-radius:6px;padding:22px 24px;border-top:6px solid var(--azul)}
+  .rec.r2{border-top-color:var(--azul-m)} .rec.r3{border-top-color:var(--oro);border-top-style:dashed}
+  .rec h4{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:400;font-size:29px;line-height:1.15;color:var(--azul);margin-bottom:8px}
+  .rec h4 .ico{color:var(--acento)}
+  .rec p{font-size:21px;line-height:1.38;color:var(--tinta)}
+  .huellas li{font-size:22px;line-height:1.38}
+  .huellas li b{color:var(--azul)}
+  .intro-huellas{font-family:var(--serif);font-style:italic;font-size:24px !important;color:var(--tenue) !important;margin-bottom:6px}
+
+  /* expansión del convenio (estación 3) */
+  .abrir-exp{margin-top:14px;width:100%;border:2px solid var(--oro);background:var(--oro-claro);color:var(--azul);font-family:var(--sans);font-size:18px;font-weight:700;padding:10px 12px;border-radius:24px;cursor:pointer;text-align:left;line-height:1.25}
+  .abrir-exp:hover{background:var(--oro);color:#fff}
+  .expansion{position:absolute;left:816px;right:96px;top:32px;bottom:110px;background:var(--azul);color:var(--papel);border-radius:10px;padding:38px 48px;opacity:0;transform:scale(.25);transform-origin:88% 82%;transition:opacity 450ms ease,transform 550ms cubic-bezier(.65,0,.25,1);pointer-events:none;z-index:5;overflow:hidden}
+  .expansion.abierta{opacity:1;transform:none;pointer-events:auto}
+  .cerrar-exp{position:absolute;right:22px;top:16px;background:none;border:none;color:var(--oro-2);font-size:44px;cursor:pointer;line-height:1}
+  .exp-kicker{font-size:17px;letter-spacing:.16em;text-transform:uppercase;color:var(--oro-2);font-weight:700}
+  .expansion h2{font-family:var(--serif);font-weight:400;font-size:44px;line-height:1.15;margin:10px 0;color:#fff}
+  .exp-intro{font-size:23px;line-height:1.4;color:#dde3ee;margin-bottom:20px}
+  .exp-sub{font-family:var(--serif);font-size:25px;color:var(--oro-2);margin-bottom:14px}
+  .exp-acciones{gap:14px;margin-bottom:22px}
+  .exp-acciones div{display:flex;gap:14px;background:rgba(255,255,255,.07);border-left:4px solid var(--oro);border-radius:4px;padding:14px 18px;font-size:20px;line-height:1.35;color:#e6eaf2}
+  .exp-acciones .ico{color:var(--oro-2);margin-top:2px}
+  .exp-acciones b{display:block;font-size:22px;color:#fff;margin-bottom:4px}
+  .exp-reciproco{gap:30px}
+  .exp-reciproco h3{font-size:17px;letter-spacing:.16em;text-transform:uppercase;color:var(--oro-2);margin-bottom:8px}
+  .exp-reciproco ul{list-style:none}
+  .exp-reciproco li{font-size:20px;line-height:1.35;color:#e6eaf2;padding-left:20px;position:relative;margin:5px 0}
+  .exp-reciproco li::before{content:"";position:absolute;left:0;top:11px;width:8px;height:8px;border-radius:50%;background:var(--oro)}
+
+  /* ---------- Navegación inferior ---------- */
+  #nav{position:absolute;left:0;right:0;bottom:0;height:96px;display:flex;align-items:center;gap:26px;padding:0 64px;z-index:40;pointer-events:none}
+  #nav > *{pointer-events:auto}
+  #mini{width:84px;height:84px;cursor:pointer;transition:transform 220ms ease, filter 220ms ease}
+  #puntos{display:flex;gap:12px}
+  #puntos button{width:44px;height:44px;border-radius:50%;border:2px solid rgba(20,40,75,.35);background:transparent;color:var(--azul);font-family:var(--serif);font-size:21px;cursor:pointer;transition:transform 220ms ease, box-shadow 220ms ease}
+  #puntos button.on{background:var(--azul);border-color:var(--azul);color:var(--papel)}
+  #nav .flechas{margin-left:8px;display:flex;gap:10px}
+  #nav .flechas button{width:52px;height:52px;border-radius:50%;border:none;background:var(--azul);color:var(--papel);font-size:24px;cursor:pointer;transition:transform 220ms ease, box-shadow 220ms ease, background-color 220ms}
+  #nav .flechas button:hover{background:var(--oro-t)}
+  #nav .ayuda{margin-left:auto;font-size:15px;color:var(--tenue);opacity:.8}
+
+  /* ---------- Botones que "se suspenden" al pasar el mouse ---------- */
+  .nodo:hover,.nodo:focus-visible{outline:none;transform:translate(-50%,-50%) translateY(-8px) scale(1.06);box-shadow:0 16px 30px rgba(20,40,75,.28),0 0 0 6px rgba(184,146,74,.25)}
+  .nodo.n1:hover,.nodo.n1:focus-visible{box-shadow:0 0 0 10px var(--papel),0 0 0 12px var(--oro),0 22px 40px rgba(20,40,75,.35)}
+  #portada-der li:hover{transform:translateY(-3px) translateX(4px);color:var(--oro-t)}
+  #puntos button:hover,#nav .flechas button:hover{transform:translateY(-4px);box-shadow:0 8px 16px rgba(20,40,75,.25)}
+  #mini:hover{transform:translateY(-4px) scale(1.05);filter:drop-shadow(0 6px 8px rgba(20,40,75,.25))}
+  .abrir-exp{transition:transform 220ms ease, box-shadow 220ms ease, background-color 220ms}
+  .abrir-exp:hover{transform:translateY(-4px);box-shadow:0 10px 18px rgba(184,146,74,.35)}
+  .cerrar-exp{transition:transform 220ms ease}
+  .cerrar-exp:hover{transform:translateY(-3px) scale(1.1)}
+
+  @media (prefers-reduced-motion: reduce){
+    .ripple{display:none}
+    #world,.est,#panel,.frag,.expansion{transition-duration:1ms !important}
+    .nodo:hover,#portada-der li:hover,#puntos button:hover,#nav .flechas button:hover,#mini:hover,.abrir-exp:hover,.cerrar-exp:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<!-- Íconos (dibujados en el propio archivo) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-inclusion" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M15 14.6c3 .2 6 2 6 5.4"/></symbol>
+  <symbol id="i-calidad" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M4 7h16"/><path d="M6 7l-3 6.5h6zM18 7l-3 6.5h6z"/></symbol>
+  <symbol id="i-institucion" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5"/><path d="M5 10v8M9.7 10v8M14.3 10v8M19 10v8M3 20h18"/></symbol>
+  <symbol id="i-mediar" viewBox="0 0 24 24"><path d="M4 5h16v10H10l-5 4v-4H4z"/><path d="M8 9h8M8 12h5"/></symbol>
+  <symbol id="i-fuentes" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h7"/></symbol>
+  <symbol id="i-materiales" viewBox="0 0 24 24"><path d="M3 5c3-1 6-1 9 1 3-2 6-2 9-1v14c-3-1-6-1-9 1-3-2-6-2-9-1z"/><path d="M12 6v14"/></symbol>
+  <symbol id="i-reflexion" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></symbol>
+</svg>
+
+<div id="stage">
+
+  <header>
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANMAAADcCAYAAADqUZQMAABRu0lEQVR42u29d5xkR3mo/VSd0Ll78mzOyokkwORoBA4kIxQMOGBkA0rG+MPpyrrX4doItJJsuAhjG4FWQgaLZHIyUchIQkJCYaXVxtmd2D09HU+o+v44p2dnZid0mtnZ3a7fbzSrCT2nq+qpN9QboDM6ozPaMkRnClbZeM8ne7Ej56PFs0GfCQyCioHwgAkQezDkz/Hl/ez8rT2dCevA1Bkzx7V3xdDqVcAlwMuQYh2GBVoDGnRttUTwoRQotwDyfuBzeM5/csvbDnYmsgPTqTuu/FQaK3I56CtAXoCUoPzgY8mVEyBNEBJ8ZxQhP4Pvf4SbLn20M7EdmE6d8a6PWcRSb0Maf4JhnoVW4HstrKIE0wLfzaP0v6OqH+Lmd+zvTHQHppN7XHPHi5HG/0HIl6I1KK+NqxlC5bmHwf+/TFRv5ZO/W+lMegemk0wa3d5HwvhL4I8wTBvPXb6/JY3gw/d/iOJPuenin3QWoAPTSSKNbv8NhPFBTPsMPCd0LKzAMCzQqoxWN1KVf89HLi50FqMD04krjeLG/0aIK5BStmQXNb3CAkwbPPd/0Ppadl7yo87CdGA6scZVt78Ow7wB0zprRaXRUlJKqQ9iOP/Ih95e7CxSB6bVPd7zyV7s6HWg3400jOMijRZzUBgW+O5P8dQfc8ulP+4sWAem1Tn+6F9/Ayv6D1j2WXguaHWsyiVWwZSbFnheGfgwvvuP3PK2fGfxOjCtEog+sS3RM3idHY28LZpICMuQGFKitcb3fRzHoVIuU6lUcKpVtO8ff7impZTzc4T+Kz586Zc7C9mB6biNzHXf7epf0/UuaZrviyZSAyaKo7E/s4fWGuX7VKtVioUC+clJioUCnuMEPyDlcbKlTFBKo/kMwv07bvztX3RWtgPTCkqi27u3n3fGZfFU+iozEjtd+B6qTttICIEQAq01juNQyOfJTUxQmJrC97zjJK1ELYKigBa3gf8Rdl72SGehOzAtz3jXxyyMyPmRTOa31m/e/NZMT99WtEK3cPk6E6xqpUIumyU3MUGpVAqCWVcaLCEDSeW5ReAr+N7tlMo/4BN/MNHZAB2YmhvXfddkYrQby9uA5hyUeD5avSieTJ2z+YwzzVjERrU5gqEGllKKYqFAdmKCfC6HU60GbvXlAkvr2W57IZCmibQiGFJgCA6aln2PbUd+FImZP7cs+fTe0fFRrv/NUmejnCowXXlTBHNtAq8axzLjuDqB1FGEFQM3gZZxNEkkSdBdILrQegDEADAIDCJ0L6ZtoKCru4tNmzdiGAZ6me+MamC5rhuogdkshXwe13WbB6v2zLXPQiANA8u2iUQiRGMxotEodiSCZdkYpoGUBsIwEIYJgHId0GpK+2qk4lQOT05kR8bHxob9SiWLlFmkmEIYBZQqIUUx/FwByhiqAKpMsqvAX/9GGSF0B6ZVJ0X+LcpkcjvCPw+tzwF9Goj1QB+aDIIEYIO2ENJAyHAjihmf557SOnBrKw3Kp3dwkI2bN0+rZCu2ODU1EHAdh2KhwFTouKhWqyjfnwFJ+B99zIuAlBiWiW3bRGMxYrEY0ViMSDSKZVkYhoEI4dQzgDvmvYbPgzAQUqKBSqXC2MgI46OjwfMIEcxdbS61r9G4CBwQZTRTSDGBUkcQcg+IR0H/Auk/zocvH+vAtNLj2rtiKP9lSPEG4MVovR3TshFyxiJqQB3dZDM3XL1DKfrWrGHD5s2I+TbXSi5UbSMDvu/jOg7lcoVKpYLnOkg0UdsgHrVJxiPYtoWUEmGYKAwcHxwfNAIpRLDntW75PdWeq1gocGj/fgr5/BzPZO2wEkfhFoLpQ01r8F3Q+giC+9B8Ed/7yomY7HhiwfTuu5JE1NtBXIEQ5yPNIJFO++0P1wlB2rh583GF6BhtLYRaCkE8atGditKdipKMWlimREpxzC9oNJ6vKFVcxibLjOTKVKpeCEK7fBcS5fsMHTjA6PBwg2qoABkmOwL47iha/Ada3MxNFz/egantNtCnfhXT+gcM6xktJ9PVAVLPwACbtm497hJptp9AY5mS7lSUga44mYSNacppYJZ6zBo8jutzeLzIobECrqeOBbAFKYUQHDl0iMMHDzbvMDmal5VDqRtQmRu45XXVDkytbyPBtXf8BcL8Xwhp4bvL++eUoqu3jy3bt624jTTv4+jADopFTAa74/R3xYlHzGmbRje16YONXyy77Dk8yUS+0jagAKSUHD50iMMHDrR2GT0NlfMNPPf3V7vqt7phestdBuv8m7Ds9+B7x8a6LQNI6e5utu7YgQzDgY4bREojhCAVt1jTk6AvHcOy5LSEasumFwKlNQdGptg/MjXtKGyP2ic4uG8/o4cPtx7dYUXAdR/GV2/glkuf6sDUzLj69huwY+/DdRpzHDQJUjKdZttpp2GY5tFTX89jSy+bKheoaoYh6U5GWNOboCsZ3PdopZdlBkS48UdzZXYfyuJ5atrR0Y6xZ/du8tls60CZNvjuQxjyNdxw8ZEOTA2BtOsPMO1bUd7y5wIpRTyZZOtpp2Fa1rSBb0gxbWfUJIKa/jyzBFdtIkUT1z96WiLEIhZ9mSj9XTESURtRU/NWYEgpyBerPLY/S9nxkG0ASgiB6zg88dijOJVq62LPioBb+SoZ8w1cf7HTgamece2nzwPzBwiZqavsVYsgReIJdpxxOj2ZBOm4TSpmEbHNwDsmQlJ0sLF9FXjGHNfHcX0qrk/V8am6Pq6n8HyFX3M568Vn3pSSqG2QTkToTUdJxwOHQjtVuUaBKlZcHt03QbHitgUoKSWTuRx7nniiPZLVjIBT/QtuvvTvOjAtNa77rklu6OtY0VfgLfPh4/vEUkme+5zz2bKul2TUnDbE9YJ3UmLWtUntZ5XS+Erh+grXVTjeDLiURikNAgwpsAxJxDaJR0yitoFhhB45rTnefkMpBBXH45f7JpgqOW1xTEgpObh/PyNDQ62re0ICFEG/kBsvebAD0+J20tuxIp9c1uo9AJ5P/0APr3jJsxnsTaOVblmlEmJ+2BZW8VhVd1gzgaq6Pr/cN06+2AaghED5Prsfe4xyodAe+8mrfpXM47/O9der1TJvxqpaxfd/PoXvfRope5fVc+f5bN++gde+8rl0peP4vmqrRNDMDsRY6GO1Dg1YhqQ3HaVQdimHF7wtbTTDIBqNkp1oQwC68kGaOyh138tP/3P3qjmEVtUqesW3YUVOX7YLWa3BV5xzzg5e8/ILiUZsfF/RGfPsV62xTIOzN/fQk4oGampLpqkilU7TPzgYpJe0w8ATfIC33GV0YJo73vXFOFq8d1kkUmDUYFoWz3r2ebz8BecHdyyqA9Li06YxTclZm3vo64rhtwiU1po169YRTSRaF82eB9J8EWu9V3Rgmjvihddh2Ge1VSqFEEnDoHdwDc969jN43jO2Ty/s6pUK4CpwFHgafB18rn3N16yYoyK49xKcubGHdb2JMMO9FThN1m/c2Ia7LA2GKZC8u+OAmD0xgqvv+AaW/aq2OB5CiWPZEbp6e+jt7yeZSHDutl5SUWvF7m4aPmzDx+qxBFsTgs1xSZ8tiBnB93Ku5mBZs6eoOFzROAosuTKLWNv7+0cK7B/Oo7VuGggpJQf27mX0yJEWw40EaF1G8+zV0P3DXBW76NrPnI8WL2laKs2w6KVpkkin6e7pId3VhW3b+EqxcSBJKma1rPsvF0QSOCMpeWGvwVkpQcpceKO6GvaVFD+ZUDyQ8yl4yw9V7fzZPJgiETF5cihH1fGb8vRprVmzfj1T+TyVcrn5y1ytwYrEcJzfBv6iI5kArtn1j1jR9+NWGwdICCzbJpFIkMpkSKXTRKLR6SBV31d0p6Ocu6V3VapzvoYdScFFgybnpOW03q3rXLQjFc23Rn1+OuHjaLBWYEWlFJSrHnuP5BnNldHohi94pZTkJyd56vHHW1NZpQG+9xSu+YzjXUv9+MP07ruSWN5DGObWRaMd5kifaCxGMpUilU4Ti8exLGsaoJo9pAkuSS/Y1kcyZq8q9c5R0GMLXjto8MJeg5og0k0u4JNFxRcO+zwxpTDC9KDlVfuCPzAxVeHg6BT5ojMdnFsvV1JKhg4e5MjBg62pe4YJvvOb7Lz8S6e2mme7L8ewt86r4s2RPjV4EskkkWgUGS5ADaC5TgWtNOv6kyTj9qpR72rOg+f1SF6/1qTPFk1BxBwJtiMhuXq75LujPl8b9qZVv+X09AH0pqJ0JyPkiw4juRLZQpWq44c2FYvaVUop1qxbR7FYZKqVYFghAXE5cFxhOv6S6Zpdd2JG3jordCiEyIpESGcyZLq7SSSTWJY1C56lFjsWsXjGjj7MsF7BapBGvbbg9esMnt9ttATRYot5sKz57CGPR1dISgHTap7j+UyVHLKFKvmiQ9nx8PywfIAI4kNm8lULht392GNUy+XmgBISlMpi63P54GVDpyZM79+1Dlc8jJDdQQGToFZcIpWit7+fTCaDZdt1AzQXpjM29jDYEz/uUqkmjZ7dJXnjutalUT2L6mn4TiilissspeY62EQYRu/7mqrrUSi75EsOxbJLqerhemp6LYUAaRiUCgX2PPFEUIGpGYeEaYNb+UNuuvxjx2udj+/t8YVvugwr8pZa9mwynWbj1q2sXb+eRDI5naDX6J2Q0pruZJSta9PHNWxHE9wN9dqCt24wef1ak7ghVkRKGgK2JyRnpw3GHM1wJbQ3xcq871paiWUaJGMWPekg1X6wO05POkIiZmEYQYS85ytMyyaeSJLPTQbVcRsFSkjwVZqLzr2N//7v47Lqx89muu46SY7LUT6mZbF2wwZ6+/qQUqKUaik6wZCCzYPp6UzS4wVR1IAX9RtcNGjQbS2vNFrIltoYE7x3m8WPJ3y+NuwzWtWYK6T6HdUoZpjIliRiBUVg0OB6ilLVJVeoMpmIYBiSp3bvxqtUwWhAnCoPpHg+2TPOBR46tWDKnXY+WjwvEY+zaesWYrFYyxAFRq1mXV+STHJlnQ46VOeUhpgBz+iWvHrAYEtcrihE8z2XIeDFvQYXZCT/Pebz43HFuKMR4ffkCir7Oiz+UpsQ0xBkEhEyyQhKabatz7B5bRf3/fxRxofHAqBEnSH4VsTGLV9yvGA6fjbTe267IbN2w/s2b1ofpIm3IU5Oa4jYBs/Y3o8d1kto5VSfVd9x7ucZIT2GCAAaiAjOSkme3WWwISaOK0SLLXbe0zw4qXhwUnGgrCl4Gk/NShye3r9izu/O/Xr7ba4gw7lc9Xj4sad54KEnKJcqYNZhkQR3TntwzQuOx53T8YHp9dd1pS547kNbTz9joyHaFyentOaMjd2s6UnULZVmSpSaTWGKwGC3BJhCYNb+LcGWEJWCuAEpU9BjCwYigsFI8G9j3vsiweJhkGpFsZu56HlPM1LVDFc141XNpKcpelD2wVEaV4OngqgLX4M742s1x4oQgfHdTgknhMAwJBO5KX507yPs2TsUzNFS3j7DBN99Czsv++wpoealznvOmzbtOL29IClNX1eMwe76vHd+uDniBmyKCTbEJOtigj5bkDaDeDhbghUUrw/UoVAK1SPVQjSDraur4D4EzoMIfwjw0bIbzK1gnQXGZhCRGa+wvNHsM58xbQbvd0difsRrB00QbKtxFVQUFDzNhBNAeKCsOVTW5NwgCNZsQ+EZrTWe59OVTvK6Vz6Xhx4/wH0PPUFxaipQGRaCSgjQXIHWn1vpeuYrL5ne9THrjOc8/0eJTPeFym1PXUGtNRHL4Pzt/URtc1FANcGpujYm+JUeg/PTksGoqDt8vv7VMUCXoXgHovCv4P4i+P9Zr2CAzIC5HaIvR8deC/ZzQESPi8RqZXPkPc0TBc09Ez6PTil8DWa7yoYJkNJgz6Esv9h9gPHhYQoLQRXUj3fBexE3Xn7vSQ3T6bc++Pp4Kv35oOpQ+173rM099GVii0olX0NEwmsGTV7aZxA3moGknimV4NyPyL4fqj8IoBHWAtOtQHuAF0BknQPxN6Bjrw+k1tGnb+156hp+WzbSI3nF3UMe+8saW7ZxowrB4weyDE8UKUzlGR0eZiqfD+4nZ0Jl2uBU7uDmyy87eWG67rvmOZsHvh9JpH6lXVJJKc3WtRk2DaYWBcnTQSzc724yOS25XB62cOMWdyGy7wM1MUPK1Cn3tBuAJbsh8gJ0/M0QfQUY65ews8SMjzk/pybAHwLvAPgHEf4Y6CJgoI1eME8D+wIwNrQNqoIHtx9wuT+n2nZhLISg6ng8uGcsuPgFCvkAqnwuFzix5LT3r4rmBey85P6T0mYaiImLzWjsV5TrtA2kDf1JNg4kl5RIGUvwR1stNsaW69I0BCm/EzH5l8FGbwik8DWETdABpwzlryLKXwVjHUSej46+AuwLwdwUqIez7tx90AXwxwJovMcRzsPgPgr+PlDjoEohKHrO5jfBGIDor6LTV4F1XtMqZu03kib83mYLhMt9WdUWCaW1Jhox2dCf5MmDOaQU05kChakpRoeHmcxmgwbcdjSC51wHvGGldOWVk0xvu6V3/TOede/g+g3bVIslvGpluDYOpNiyJj1vW6KZiyuAP9xqcW5aLjNI/4jIXQfCpL1JzH4osTSIZLDxjbUg0+F56ILKB8D446DzoJ2jThBhhOCJJf5GFWQPOvPnkLoy/HnV0qwUfdj5pMOBsm6LDSUAX2keeHI0LPQSfl0G7YQKU1MMHz5MPjcJUmh89WZuvuzuldjiKxZOJF7+9g+v2bz11VaLf1FpjSklO9Z3sbE/teRdkqvg1QMGL+0zlhekqZ2I3F8uA0g1IMzQ7lKgc6H0eRK8J8DbA/4hULkALGTws8Ka8Tyijr9hAVVE+WsINQGxV4VbpPmZsyWsiwl+llWoNp3ehiHxfU12qnI0Kj3cCJFolJ7eXuKJBNWqI9xq9ULOvegzPPCl4skB03s+fVkkmfrbNWsGms7812FF1a5EhLM299CbiS0ZKuRrGIwI3rHZxF6Wa/4QpMK/IHLvDyXAckeUiqPSRpgzPoxaKkKLWzYEt/pjhCpC7NUtP3GvLch58FRRL3m1UO8c2KZkJFc+9jANvxCLx+nu6UZGYt3lanmz/slnP7fc6t7yw/Se238Fy9iVymRivb29Td0rKRX0Jdo8mGbH+gxR26wr5s7X8Pp1gcNBL9f0le5ETFwZrtPqKkPYErAhUIEj5Hkt7UMBrI0KfpYLsoHbwZNlSnKFIMVjvpwprTVCStLJBMmuvnO8Z71OVL+363vLOWvLe4y+e9c52MadCNkVj0UbhygEZrA7zgU7+tk8mKo7eNXXsCYqeG63sXznUPmLiIn3BN63kwakmUBZiNz/Oureb1arAPpswYXdBl6b7qOFEHQlI4szrjVKKZLxKJu2nfZXW2+59z0nJkzv3nUOtvw80tyE8onF43WfbSpMu+hORjlvax9nbOohHrHwGygz5Wt4fo9BzGi3bBchSF9GjL8TdIXVUpdmWQ4MXUJMXBu411vcLi/qbeN6aMgk7LoKuijlY5qmSPf03nT6x+7/oxMLpqvuvJCI8WUMcwe+gzQMIpHIkoUHtQ4K3KdiNmdt7uHcrb10JSONJwYCKRMu7F4GRwASSncgxn8nvKs5WUGqnR0RcB9ETP5tS7aYBtZFBWemZFukk9aaeMTEtoy6Apq18pFCGLFk+p823viTPz4xbKarbn8dpvkfSGN90EUbrEiEgTVrFqwHUCtgH4+abF2TYfu6DMm4jW6y2KKn4IKM5EW97fLghdJIVxH5v0fk/iz0mp3kIE2/fROcBwLbydzetP0UpHwI7s+ptgTFGoYkO1VZ0G6ab6NJaQgzGn1N4cxXJby1/nf45S/16oTpml1/iGF9AsigvOk3EEsk6B0YWNS5sHEgxWnru+hKRWY6ZZo+Bd+wzmQwItoDEQKqP0RMXAHF22bc25wqQ4B2EO7DEL84vIzWTc1mxgpgKvqtR5lLKShVXCYLTv0FMbXGMk0MO/rCnNN3Os965Xf42X9VVo+a945/i3LtHR9GWh9F69jckl22bR9TV63m6u7LxLhgez9b1qSxTNlyQl/NHX56UrYwJSEs2oPK9xBjlyNGfh0qPwARY7X1O1gZnuwg3jD/wabVPU0QpX9eRuK3SR4kolbDj6N8n65MimRv/yVY3V/lvbefuTpguvJTG+iO3Y0ZuRblz9vE2Y5EjnEwWKbk9A3dnL2lh3g0qLTajmwMX8P5GUlU1nt2iqPwYAQOBef+IJph5FWI0d+A0mcBNSNN4hQdIgpT/wSVb7ckmZ/dJdsSr6fDLvRGEyJOCkF/TwYs63lY5rd5765fO74wXXX7izAj38a0Lwqqsc6/fe2wwlBNrUvHbc7f1se63kRbG35pghv3Z3cZDQAkwT8I5S8gstcihl+GGH4lIvcXUP2f4GdFlNXeS3tlhgzUvexV4O1tGqjNccnGmJiurd4KTRHLwDKMhg/ioMVNBtuUIMQ6LPM/uebOP21loZu3oK/d9QdgfAgpU3iLRIALgR2xg5Q3penvinHahm4sQ7bcomQ+qbQjIdgYE4ucHeH3vMeg/C1E5Rvg/Bz8UYIg0FpEQbzDzrzraYH7JGL8Hei+z4LRTyNR5rXkwWd3Gewpei2dURowDUnENqi4Xq1nY/2b3zRJpVKMj4yAYdqY1j9w7Z3nUvGv5qOXZ5dfMr3j36Jcc8dNSOtWBKlama4F515KLMtG+YqB7jhnbOrBNJanapDS8NxuA0PMJyONIPiz/AXE6JsQR16KyP4xlL8RpkrYgT20YN5RZ8xS96o/QYy/PQiubUJCPbNLkjJbv3OSUhCPNP9CyVQqJFOB54Bpv42o+XWuvuOs5YXpT+5aQ3f8c1iRq1D+0h3gwn480jDoSkY4bUMXUixPC0qlgxiwZ3bJ+VW6yncQIxchRi+B8n+BLoXwRE4xz1y7gIpB5VuIsUuDXKkG5rAWEXFeRuK24c4pEbWa1BI10XgcYcx4drcKhnkhUn6Lq+98zfLAdOWnzsbXX8eyXodbrZsIw7KIRQOQTCmXrSikp4P63SlzZr6SDJZu8m8Qo2+E6k9CCRQ9NT1ybQcqHng7R98YpOUvmeYxe7ykz8CWLUonDYmYhWjSz25ZFoZhzN7PngNSrsOQd3PVp3+/vTBdeccLMCNfwzDPb7Tti23ZbFmTIRYxl60gpNKQsYLacLMlkkZkP4CYvL7jjVtOCeU8iBj5NSj+ezDPdUClga1xyXnp1qSTRhOzTSyj8YNaa41hGJjWPJLN90DrGKb1ca6648/bA9OVn345pvwCUmyk0aQ+rentSTPYE0cvY0FIV8PL+g167TlSqfAvMHXTqXs3tGJARUCNI8b/CDHym6HrXCwJlQAuGjRbitfTOoggj0dMmmkQKqQIJNO8L65Aa4Fl/S1X7/rb1mC66vYXYVr/gZR9zXb127yuF9NYvi4UroKtccEr+s3Zb8vfh5j8u45DYcWGGajQle8gRt8QqH6Vb3A0NUXMK502xwWv6DdwWpBOUgpScbspIgXiWDVvLq3KAzPy51y96383B9OVd52NYX4GKXubAklrDNtm3UD3spUpVhriJly60SImZ1c2EIVPBPdHp0r83GqSUoigfsXom4LIkfIXOJqmcixUFw2anJ2SzQOloSsZabqb55KhSFqDcsG0/oqrd13VGEzXfrwH6e/CMNe10me2K50gk0qgtVoWkKSAyzdabI3PUe/UJJTuDouTdMZxIOqok6fyXcTopYjh10K51ovMmCWdIhLevslkfUw0ZT9prUnGLCK22ZyDS9S3n4OSYuYHufqO19YPk058CDt6Aa0UPlGa3p4MtmW23YNXA+myjRbP6ZLHliJ27gd3D2B19vVxhyoSZu3+CDH6VsTom4L14WiKvya41rhii8XaJoDSgG0ZdIfpOstDU2hDSWEjxMe48lMblobp2l1vRJrvoNW6dgIG+rrbbq74OggZesdmkxf0zG+LieqPAKezl1cjVOWvBPd9+RsIIieOdlBcExW8Z6vFloRoXOXTMNAVb677eyNNI3wPLHsjQv7j4jC9+64kmr8NlMhWciA00o7Q09PdVi+eq6DbEvzhVosLuxbJVXIeoOO9W61QxYIL89yfhZnKU7OA6o8E/aSekQlsqEays9MJm0wi0rCN3rA08xwwrLdyze2vWhgmy7sUM3JW03bSDJgyXV1Eo5Gm3JXz8qFgR1Jw9Q6LM1MLeQdlUIjRe4pOVMNqHkZw4Vv8NGL8ijD1/2gLnpQp+IOtFq8eMFAzOpQsNaQQbOhPNnSBqwnqRDTkvdA6yEzU4gNcd508FqZ3fcwC8a52GDjCMOjr72+LhlfrwveiXoP3brMZjCxWkVUEAav+SJjA1xmrW1AloHQXIv+Ps7aiJmjh85b1Jr+90SRiUFeEudKa7lSUga5Y/dKp2awFzwUpX0r2rGcfC1M8dQGCZ7YslZSiq6eHeDLZchdAXwcP+JYNJm/fVOflnn8kkE6du6UTBKgYTN0StNyZ4+XTwAt7Dd67zWJNpF47SrNlME00YtYFiQ4rGDV1zJu2iVRvPhYmLV6OFTFatZUMy2LNunVBmaUWXspVQYrzH261eFX/UZ16aQIPhqWBOzCdGEOCyiEK/7KgZrI9Ibl6h8V56aXvorSGaMRk+7pMXansWuvmu1YGGeWv4C13GbNhEvrCllU8rRlcu5ZYLIbWGr/Jh3QVbIwLrtpucU5YH7zuJ/P200oXh844HtLJhvI3QWXndRxpAsfTFVstXtpn4C7hmFAqKIewcWDxzigIEUimZve9UqDFDtZXB47CFBhR22jlclUpkpkMA4OD02LT8xt/PUfBaUnJe7dZrIs23rFCePs6UulEdEj4h8B7fMG1q2VRX7bR5HVrjOkWoIsBtWkgxcAinSRFKACa9jhrDYIMSq47CtPhZ0fRorv5jsoa07LYuHlz0I2gJmEaLJDmKjgjKbliq0mX1WTrF38/Hbf4CSeaAo+eu3tJZ5QAXr/W5DdCoBZ9VQE71neRSdgLAhXYVU2H2YI0JFL2HoUpNm6Dbik/Yf2mTUHV1hlAun79FwWehg0xwe9vMefkJDWge+tSqOZ1YDrxhkb4h+rZvgD82hpzyQBZrYO09jM2hUV75hEWmhZrkAgBWsWPwhRNNI+nUvStWUNPf/9sr4gIJFM9+qgKGzW/Y7PVvERCBJ48/3DHLX6iDpWrVx4A8Ma1JucskQ+ltSYWMTlzUze2aSwATsv1FdVRmBwcoNIMSMlMhvUbNhwTwi5Cm6neIvu/tsZkU6td/dxHwwXpSKYTVtWrX8HCkvDWDSYpc/GLXaU0qbjNGRu7MebL9m6FJa1ByNJRmNKPVEHkGr0FtqNRNm/dipRyHuIFnq/wlV70ZT0d5LTMzpJtcjmq3ycI9e+MU0MxhDURwUv7jSUvdZXS9KSj7FjfNWs/SiGaTt1ACPB9BUwchen66xXow0GzrPpAklKyaetWItHovKJTiKBdou/rJcF+ccu1AGRQRL/8LTqR4icyGs2t3Qt7DDLW0mFHSmkGe+JsGUxPd1oRUiJlswe5AEGBqh5ltj4knqSBes3rNm4kncksenuslQ7BFQvaSmkLzkm3qpYJqHw3UPNEB6YTV9OLNoVgjy04LVlfyWWlNBsGUqztTaCURohF0tbrcj7oEaLG2ByY9MN1ucaVondwkP4Z90mLORY8pRZUSRWwNirptkSLfel8ROFWWmlm3BmrAabmkzl3JBopjaDZtjZDVyoKQmBZVnP156QEwVPceHF5Nkza/wWeoxa1xpQinkqxfuPGuh96MTVP6SDkvjVfioTKN4MiHp3M2hMcpuZLDAxGRd39crUGU0pOW99F1DaPqYVf//NK0DwwYyeGIxZ5Aq0PI+WCT2BYFpu2bMEwjPqCCAlbaS7yJpNGiyDpAiL3v8OGAZ3IhxN7NK/uxw0WqOS70EEe9APbtjZDLN5kKWzlA/qnxz79P1w8CeIXC8IErNu4kXgiUf8ll15aejbfoyfoKi4m/y84P+tIpVMew8Y3klKa/kyMLev7WWzfL2gveV4R339wgaNAf39ej55SZHp66Jt7MVvPfl9iVFXz00f5SzB1c1OGa2esxtG85VwN+x03ipTWmtM395NKJ5cu9z1r+xkAjzEc3T8/TFr/AM/R86l36zdsaNrhsRhrk24zE2iA+xhi4uqgIVlHvTtJWGq+7siUR1MtapTWJOMRzty+gYZyhoQBmh/xHxf7C8CkHkKpg8z0u2vNwJo1RMO0ikYVMdNY+AJJCphwNI1ZO0aQ/zJxRRBp3HGFn0QwNd8Nc7TafLM8pRRnbd+IHYvU79XTPgj97YUtvlvelgfumYZJa+xYjL6BgaaCAYUQQQ3oRWCbcDWFuo8UAShE9k+h+uOOendSDRHUO2xyDFVU0/qJUpquTIJNGwahnrQhIcFzJ7DMe5dyn3xzplTqGxjAsqyGYao1orIsY0FdWAooeDBcrfe1JUz9MxQ/GdYP74yTCiZ/uJnfwtUwVNEtNZwWwOnbN4FRhyMiuOS9nxsuPrI4TIb+AZ5TATBtm+6enqakktaaqG1gm4t3J3AV7C3W8/pGUMhw8q879cNPymGAfyBU9RrzrI07mjGnNZh8pVkz0EOmu3tpR4SQx6h488NUKDwF+jGEJJVOE4k0WSVTQypmL1kUUABPFpcSrRJUFpG9FlSRThmvk1EwGeDtC4Bq8KDcV1KUvRaP17A/7oYN61g8RlWA6yh89b2lYbr1Chetf4A0SHd1NT83ArpSS98sGwL2lwK7abHmIyL/4aC4ZKfH0kk6ggOTyncb/s3HC6rl6oyBW13T1ZUJ9v1C0klKQO3HHvjF0jAF4ztCCuJzMmcbgJyIbZKO20vm10sBOVdzoKwXFv/uI1C4teNwOAWAEqW7ALcu6SQI7in3FHXdoUT1SIHBdWtnt+ac9YgGaHEPH3pNsT6YnOp9liRvNaniaa3pSUWwLaOuE8PXwemy4Pub+kjQxLmT9HeSq3o2VH8KlR/UvdaHK4qxamv2Ug1MpcH3fZLJJN29vQtIJwHw/QVk6zzjo/sO2XbkMWk2d4cjpaC/K173hbYUsLsQ1NkTxxilh6D85Y56d2rQBNpBTN1CUK5taUJ2FzRLhGfX/ac9X+H6QSTFmrVrMea25xQCPMfD0PfUDxPXq2g0+jPRRNKU0kGKcDpu112PzBDBCTMxXzRE9UdBbYeO0+EU4SkSZgF8py7ptLug2uLXFQiqjh/k32lNNBajd2BgtnQSElBDGKUnG4AJYon4vc1WbVnTk2iotYcASj7sK82TsevcTydP6VSTTh4i/8FFK/MKoOjDwUqb7CUBU2VnuiSY1pqBwUGsyIyoCClBi1/ywXdONQRTNBZ/TLtV3UiCvNaQiJj0paMNt/VQGp6ez0XuH+rYSqekdPo+lO9edO2PVBSTbuv2Ug2eXKE6za7WGtu26R8cPApTcL/04MLuk4W+YfgHNEwKIRt6oDU9CUyz8c0vBRwoz9OARrudzXWKSiiRvyHs3zT/fjpY1k217TzmLwmoOD5TZWdWfXKtNb39/djRWABUANWjDcP0+IGnxrTvH6k3z6NWMH2guzl3uiS4yS77cwS7zMCy9WrvjNXLkg3Og1C8fUFVb6jSnn0hhGBiqoLrzra/tNZYlkXfQH+wwX0PtHy6YZi4/mKnXCkfEXXDpFnTHQ/c4bq506HgafJzgl61eVoHplN2mOG1yPwF/Ucbs0IWNjGUZjRXnpdZrTU9fX1Y0Sj4ngPV0cZhAnITuYl6wNA6aNA72BNvutSsIIjTOyaC3H4OEOkAdUpKJwvcx6D02VnSSRDkLk15umVrWgpBvugwVXKQ85BZs516+vpA6zIylm8OpuxEyXGcJfvcaK0Z6I4TtVvrrK6A6qxuMBrsZ4K1lU5xyVN1GIjibbNadUJw0e+0ycl7JFtc1GGmtaa7tw9pGg7ewp3HF4XJK5f1ZC63KEwaME3Jmp546+2djpE/CmQGHfu1jiPiVJZOzs+DOh9zc1nbYCsVKy7j+cqifXC11sRiMZKZjKZwmKZgQsjoxNjYkoUme1JREhGrtW4C4cNE5nuixOWhI6Jz33QK0gS6gih/bba8EkG/ptZggsMTRTxv6YtfIQRd3T0WZWk1B5MU3aXCFFP5PHIBR4SUgjU98ZanrFaIPWGKY5U/6zyI/VpLNQI648RW9XB+Si3ESAOmgITRfPFSIaBc9RjNlerqzq61IplIxlJb1icbh+m675oIMYBSjAwfmVfqaK1JRC3S8UjzrQxnODHiBqTN+TADnboSRLLjiDglhZMR9N1Sk7O2bJ8tmu6bLITgyEQRx60vHElrjRWNRPo3b+1vHKax/RlgEKAwmZ9XOmkNfZkoRhviORTQY0vi5nyv5QdevfhvgS53NtcpN8LGDLow66trY6JJkKDq+AxnS3U1ka5tdmlFRSwW2d44TIa1Hq17IehGPXLkWOlkGILuVLRlxwME4UTrYwK5iOzRmfeB7OvYTqeq7TRHhmyICUzRDEyCkVyJquM3dE8lpEBozmgcJiHOwgx93VKSz+WYzE1OS6daR7Z4GxwPtanaGl/snflgnoFO/m5LJaE640QcCkQaZHrWUbs2Kkiajat6rqc4MlGsXyrNkE6u657dhANCXTg3lGh46BDK96dVvGTMbouKp4GoAVvicumfTL0HjE107p1OoaE9sE4PgAq1Eg2kTcG6mGhIT5FSMJGvUKp6jUdPKJ9qtXouz7821iBM8jmzczkExakpshMT09IpGW1PAUilYTAi6I+IpU8oYz2k/iAMz++MU0Uy6eirjlHzBHBaojHJpLRmOFtsEmqF6zibOOfsLfXD9L7bBoBzgir/sy234cOH8TwPIQQRqz0Je76G7QmJWVcXA41O/A6YmzvS6ZQYPhhrIf4b8373tKSs224SQlAoueSL84cO1aXmKWxs68L6YfLFMzCMvqBNy2yYKqUS46OjSENiGLItnmop4IyUrPuUwlgD8bd2pNMpoeJVg0t7Y1MA1pyxISbpqdNFLgSM5cv4TfrTtdZUqlUwjZc0oObJl2GYCz7RyJEjuI7TnohdIGXClnhjL6YTF8/SoTvjZATJBXMbOnUV853amuBucnNc1NWC0/cV2Xyl6X3rex6VYgGEfAFXfiWyNEzXXSdBvGzBumFC4FarjAwPN31hNtde2hCTZBpqxanAOgfsC8IuGJ1xEpIU2EqZ6wI1b5FD84zU0i04pRAUK17oeGicJiklpVIJp1wCKXcgcmcsDVPhvI3AecfYS3OAGhseYTJfrCsUYymYdiQabcWpARMiL+rYTSctS2VI/DYkLllS+9gal0SNJSyOOTUemhm5iYmgwIoZsUC8ZGmYPOcFGHbyGHtpDkzKcdi7f4hWO9IaArYmmotY1PYFdKoWnaR2kv0MdPffh1t0cQAGIoIea2m7qVBuLvNACIFTrZLLZsOGYxqEflU9NtOrqafug5Ts3TdEsVxtSmzWpFLCDC7fmhrmprCeXide7+QZHshudM9HQfbP63SYq6NEZLCHFoNJK02l2lxBciEEY2NjeI4TwKQ8QDyXD9zevTBM194VQ/Ci4IeXVEIpTBXZd2g48Oo1qRV3W4KU2SRMsjtsLdOB6eSxk0B3fyjMsPbr/s31scXtJl9rXK/xGntCCKrVKmPDw0fbYCoFhrGWknzWwjBpdRbIrY309nzksb14nt/U1CkNvbao835pvncaDxtDd2A6aeyk1DWQuIxGvbT9kYWFjiCo8+DrxrveCiE4MjR0VCpN2ycmCP2KxWB6EaZt1r05Dcnh4XEODk8E7TabOIe6rFZsLkGnT9NJBFLsInTmr5gv53qp0WWJhYtRhod1ozGkUkryk5NMjI4e241dKRC8BLSYHybBSxt9E9r3eWT3IVy/uUox0Y7/oDO0B8YGdPfOsNNJ43eHERlc/uvFNciGJJLruhzcv39+CANv97m85461x8L0vtsSaJ6xqEt8/r/KkZEJ9g/nm3ZEtGSs1lngvTNWs52k0N1/A+b2huykBrdpQ55nIQRDBw5QKRaZV0poBdLswtTnHQuTim5DiI2LusQXeEqnWmH/8CTj+UpDNcYhqDHe/DpUO5e2JzxLVYj/ehAe1kI0S8Vnni4qR3kVQtStOUkpGRsdZXw+9W6WmWMCPO9YmHz/PEzLajjTTwg818V1XJ46NEm5gRtmIWCs2oLzQFfoXNqeyEOBSKLTf0ZwX9j8Xhhz9IIhRZpABQwOer0kSMVCgUP799ex/zQgnnUsTJJzEc25uJVS+L5HxfV44kAWX6m6TgEDOFzRTC3agrMeydRR805YqRR7HdjPotUYyz1FvSgmQghMKZb8Gdd12f/00/iuy5KbOHBCnM51d9mzYdKc3nT+udZ4nochJblClacOTdYnTgVkXc0TBdX8YiyTjt0ZK2ErWejkbzfnIagBABR8eKygFk3FEEIs6XHWWnNg717KxSJ11djXChBrmKz2zoRJINjQCkx+mIErZVD1Ze+RfN05Iz8YU02eSw6dO6YTdfhBTpr9vJbX8GdZn/ElWnEKwDIXThmSUnJkaIjc+Dj1NqsADVqnUUb/UZje8W8RtO5u2PkwR9U7+mCCAyNTHBorLOmQMEXQz/b+nOooa6eUYHID9U52Na3iCSDvab414i/do0mAZRoLgpQdH2d4aKgBkEKbyTAMDDlDMqVNG4i1Njn6GO/CnsOTjGTLGHV4+O4e8phwG7WdrI69dAKreTry7KZ/W8zYNyPV+roH2vPAJISgXCpxYN++5goDCQma5FGYpCdpc3s+EfK1+1CW7FR1UQllhF69T+/3qDbS7FcmQ6A648QbFlhntfQK3x71+cmEqrtMsmXKWZtLCIHv++x7+uljw4UaOhd84yhM5joXQUuV8edzhwsRZDc+dmCCYtld1IayJDycV9x+wMXTdQIlu0HGO3bTCTcUyAQYm5s+qO+Z8Ll7yKu/n60OYJp5cSuEYOjgQUpTU42pd3P9KMjqUZj2T1bQTLaSh75QkqAQQRfrxw9kcbzFi/7ZEu6ZUNy2362jHb0OClLKQdAdj96JB1M3GAMNQySAH0/43H7AW/iSdoE9bxpyev9JKclOTATR4M2ChADladATR2H6j4t9YH+z90wAcpHflVIwVXLYfSi3pMOwBtTH97pL3D+pIGrcvoDOxe2JZi6pACSZqtv5UNsH3xwJQPI1DTeGNqQItCMhcByHg/VczC6ujoHWBQwxxGw7SdzftGQSgqXadUopGMuVOTAytaSHz5bw4KTin/a4DFUWd0ro2K93nBAnomQy1gH1pc8IgsZmdxz0+NyQFx7ejetjUorpGL0jhw7hViq0VBUo2PN7KeSPzIZJqu/iubr5162jqEXoMs9OVeoCam9Rc9NTLg9OqgWSLTTEXg32+Z2yXyccTBvrlkjjjuajT7t8d9THFM0fnVIIDENSKEwxPjbWgnpXe0EDBD/k1ivc2TAVC/+D9p9Amk1JJikl9Vz6+lqzZ2iyrqxHS0Le1Xx8r8tXh33UMUApECl05i/D73TKfp0wmp65tS776PGCYueTLo/kVcvNzWpj+PBhtN8GO9t3QYnPTbM1/Y1bryih+SSG0QRLS6t5M0+HQtllaKxQV2UjI8xR+fyQx7/vcyn68wAVez1k/iQMfO149lb/sMDavqR99P0xn4/scRl1dFtAEkJQKhaZyk22LpUMC3z/frqNHxwLE4AZ+QRudQhpNPyQjZSbFUIwNF6kUmfxdBFKqXsmFP/0lMNwdaYdNaO+WvpPQnWv45BY1SqeTIa5S/OvtafhrkMeuw56uArMNpnEGhgfG2+PVArGDVx/sTM/TB968whK/W2jMNUAacQJ4rgNNpsK7ag9Rc3NT7nsKao5QEl019+je/4pCFHR5Y6UWpX6nR/YS8aGY9ZHEOS3fWKfy7dGfAzRjKNhoQNZUK06ZLPZ1l/UtMFzvkt56rOztK5jfrByxsfxnG9iRuqcHB0mXjVaqAJGc2U8vzE7x5KBQfqRp10eK8wESgUfyXeiB74J8TcAfqcP7qobHkSeE1xrzLBxBVDwNLfudbkvG9hH7fTRCinITRaolMqte/B8L4/mmprjYWGYbn2OC+oP8ZxDC9Ybb8ebE4JS1WuqI4EpoOjBvzzt8dQxEsoH62x032fQfZ+ByAsD1U9XO5JqVQyBjv7qMRKp7MO/7PX4ZRsdDXP32+h4DnzV0rMjJPje+7n5soeO4Wze39l5+R7wfweli82ofHVLfK3JTlWaOoIMAQVf86/7PMacuXdRfgBO7NfRA19F998B0ZeGkqrjpDh+Kp4XOB6iL5+1Bgq486DHI1PLAxIERSiHhsdbE3eWDb6zk5svv3VeobXgL+68/FvgvwtwF42MEAKtdXPd1gVMFh18v7nNbQoYrWruPOjNE88XSilhQuwN6IH/Qvf/J8QuCr7Xgeo4jCo68Xsge6ZVPAH8YMznngmfyDKBJISgWK4yMpaj6SgfKwJO5XZKhT9dUANc9AVuvHQXWl2BEO5iEkrroIl0w+qnEJQdj6rrNV3ZyJbw0KTingl/ER+OH7zV6GvQ/Z9H938Bor8anJSdy94VkkqVIBEw+QezQBpzNF8+4mMsYxCLIQVDo5OUytXmnA9WBNzKZ+iqvnOunVQ/TAA3XvJvKPd30bq00IWunpFp27A56iuKZbclm9AQ8PVhn8KisXz6qPoXfQV64PPovk8HaQAdz98yg1QFYz269yMgM7Pm+usjPpOubpvXbj5Hl+Mp9g5N0EwZO0wb3Mq/43e9g+t/d9HO5PXJvJ2X347nvxmtRjDmyR9SCtd1m5MuGqbKbmsnj4DhquaerKrvD9Zq7cXfhB78JqTeHX6tE33e3qFAF8E6A91/F1gXTM+xAA5XNT/L+lhy+Z5ACMH+kSlyk4UGf1EG4UJe9R84ZL6TW163pFu4/rdxy2Vfw/MvQvmPzOc2r1YqTTtIihW3uSzHOUD9cNynUndyYQiV7EV370R33wiYHaDaMvxQ2puQfBd64GvzFuL/4ZhP0Vu+MGVDCkayJYbGi7hOA1ckgRe7gu++l52XfSDMqqB9MAVAPYB2Xo3nfgUrMstfXy6VmlKUBIJy1cPzdUuTaoigbNjDedX4wqOCRe/ZOcO/1BmNA1QJIJLdkHgHevAb6J6PhJ3//JnnJ1Oe5v6calt0w3wgTUxVePJQDq01jlOnbWzaoNQQ+G9k52X/3JAPoOGn3Pm2w/hH3oTn3DAtCoWgVCrhe42H8dR0Wsf1ablJrg4yMHUzv4iCxO+gM3/RcUrUO2faDeDR1cBDF3sduuef0Wt+hO79ONgXLqg+PzipmHCWx1YypGAsX+HRfVk8P3COOfWkpVsR8Nwfo8QruPGyrzX6d5u7lb3l6irwfq7Z9TDS2IlpdznVKuVSiVQ6PatSUV1nmlKUHY9E1GrJDWBKeLKgOFLVrI2IRlsQBECl3w/OQ1D6XNj7qTNm20AutUqs2GdB5FfQ0ZcFapyxYY7EX/BV+J+sot2l6YPXExwaK7DncB6lghwm1/XwFjvoa0LBdT6B7/4xt7wt39T+a+npd172Sa7e9RhS/CvSPDs7MUEqnW7qkCtVPMi05lSrxXY9kPNZO9jMWwt65eruDyKcB8DbD6JTsGU6LEt2QeSF6NhFEHk5WKfPOXDUkgsogENlzdMl1VZ3uJRBeYS9RyYZzpYCAyJ8fc/zAq1pPnqlCVpV8N0PsPPSm1p6hpbfxU2X/RRdfRXK/3I2X6BSba4tZ7HitsU7bQh4IKdwdbOGrR+0N+n6u6P9S09pVa4ctMNM/3/owe+gB74SNCSzLwjbv/gzPuqbqwcmfSp+exwPMizIP5It8eBToxyZKM0u0h/Wwp/3HtS0QauDaPX6VkGCdnVXvufuAhe++D+1aya0Yf5KV1c3usGClkLAYHeiZdEvBUx5cEZS0mu38GLWWQhvDzj3nZrSSbsgDEi9M7B/4m8EY/CoOtxEQ7Ja+vnnDnkU/daCt0VYiH+q7PDkoUkOjEzh+eqYDG4pBFP5PJPTzZ1rIEXAc+9F6jdw46X3tsVWa9vk3/s1n3v/8+uV8341G0tlXhWLx426oyKEQCvNQHc8qG3W4nAV2FJwXqaV15IQeRai/AVQuWBjnTIgVcDchu77F0hdGV60+rQqpQXwREHx7dHmIx5qEFUdn33DeZ4amqRQdsP6DvOVmxNkxycoTk2FMIkQJOduov7FfPCyQ21TNdtuot542c3Z0eHLHceZEqZV9yR7vqJUcRtqSLWgISjgF3nVfHeNaXVvIzrz13XZAicPSGWIvgQ98FWIXkS7L7N/mlV4TU6llALXU+w7kufnT45yYLSAr/Wi9UQ0UKlWjpJoWuA7/w9/+FL+7+XZtnoRl2M9yt/51C9Tr/ztB0w7+uuGaUXrkVBaQyxi0ZWK0OL9LSJM0eiPCjbHWzwv7PMQ3m5wHjj51T1dCtzbfbeDsaatENUKo/znkNdwr0cpBb6CIxMlnjiYZWyyjNLB15d6Ha0Uw4cPB03MTQtc5wZ2XnIN9z6/7enYyxbI8dR7n/e1fHb8kmq1OiXrkVACJktVlGqPBBACfjzut+CIqJ1rQQYv5mkn9/2TLkHstejeTwaXrssQCfLTrE/erX/T1ZJOxybLPLRnlN0Hs1Qcb7pkVz2/HzTic8IYO/dGbrrs/SCWRc2Qy7k+e6983tcP7N79zlw250rDWNTLJ4WgWHapun5b7h9MAXtLml9MthrN4AdBmj23hG7gkzDcSJeD4N/efw+7UrT3PdayaH80Xr87XEpBuery6L4Jfrl3nKmSs6BdtBhMlUoFXxjgVm+j65I/Wc5pXHaruvr9XY9M7niJ5yFfGY/HMA1jwTg839ckYhapuN2yqkdo6Yw5mud1Gy2GreigAIjRgyh/5aghe7KAZD8X3XcHGP3LclgI4JsjQdugpYJaRVgXb2i8yBMHck1BNBOmiVyewujIj/GtS7nh3OoJDROA3iR/UvQGn5kvls8wpSAWjwelweYQowk6G/Z3tSfyQAqYcCBlCbYl2iCE7eeASCCq3w5RbfU1QzezVkzHCDJTL11mYHUFrPPQ/Z8Bc8OygTRc1dx+MChpvBgTUgQOhicO5jg4OoVSNNxwfI5448jBAxPORPYN3Pr2oeXe5yvj7/3lLzUv+K2felXn8lwuFy9NTWHbNpFIZBZUQgiqrk93MkLMNtviPxPA3pLi7LRBxmrD5oy8AMytiOqPQGVDl7moExqPoNuhG0ITCewTcw2Y6wOjXyaPSgxdCX5PyPaDpStgnRWCtH3ZQPI0fHKfx8GyZrFbDykFxarLL/eOkytU67aLFpNKVddn+NDB96t/fttXVmKbr6yucvUdf4xlfwingpCSdFcXA2vWkEylEEKglEIpTX9XjLM297acllEbnoYNMcGV2ywylmjDbYkE93FE/oNQ/jKoiWlnxWyAwq/VoDE2gnU62joLrDODNpSyLyxgb4av7Qb3Wt4eqN6HqH4PqveBGg1fy2592XQJ7Geg+3YFjpVlAgngs0Me3xj2F63tIIWgWHF5ZO84ZcdruMDOvK9pRciNjfxkz/e+9DL+43rn5IPpfbcl8M3/wbDOwvdAqRCqDP2Da0ilUyAkWinO3tJDbzrWNu+eq2BbQvD7Wyz6wsiIFjOoQlKfhOoPEc5D4B8JTnxhB4a8sQ5tbgtOfnNTaJPYC0iu2ud57DHvaah8E1G6G6r3gs4DVlDfoqElVMHzRV+N7r01DExdHpCUhi8c9vh6WP9OLCpBPB7eM06x4ram1s0wvLSQajI78dq973nON1Zqe6+8FX31rt/Dsj+BNyO7NlCOSaVS9K9ZQyqdJhGPcN6WHixT0iYBhaugPyJ483qTZ2bkMVt5+TXlZi5/xQyJp8B9CFH8PJS/CN7jYRS3uQRYYQEZEYfUH6IzfwUiQbvvkWrjSFVz95DHzyfVkoX2tYZH9o7X1cyhbqlkR6kWC996ZO+dr+H669XJC9P7bkvgmfdjWKej5tybKQVCkEyl6B0YYNvmdZyzpTec9PYQ5Yf2/dlpyYt7DU5PSmLG4tbO6hkzwNIFqP4YUfoSVL8P3t4wu3XmsoaqpkhB9KXo9Psg8qKjNlwbN4vScLCiuXfC556sz5TLkp47KQVPH86zfzjfNpCEECiNzo2PvG7f1S/42kqvzsqPq29/P3bsH3EX8FSGUMUTSc45axvPOXcLlmng++07ZFwdbMv+iGBrXLI5LlgbFXTbgrgBESkwBQ3FkK0seDOcEnoK3EfBeQDhPgb+COCB7EZb50D0JWCdH/683/QGUICngrmr+JpJF0Ydxf6SZk9RcaiiqfjBHd9SbEgpyE5VePjp8fbOihVhZOjgzw5++t9fwH23uic/TO/ZtQ5LPISQvSwWXa4UaFi/fpAXP+9c1vR34fmqbVKqJqmUDjOZRFA6LGoIIhKiEiwpsCUzPgQxAxKGIG1BtyXosQXdlphlZB83sOpQMcWcr066mqyjmXCDfxc8TcmHqtI4iukPV2mqCioKqn7wb1eFbpbw4KlnQwkBnq95aM9oEKTapixBKQ2yk3n2Pf7IFWrn/IUiTz6YAK654xOYkd/Dq+MezfexIzYXnLuDC87ZTiIawVfthWqWD07PdgnUdPu5kIhwE0WMAKpNMcG5aYOz05KEsfrURDFDJdtTUjw0qdhdUIw5ATyenn31N/O6S8z4muDofZFoatML9h7Os6+N6p2Uktxknn27nxj2C7lzufWKsVMHpqvvfAlSfBetZV1bTmvwFV09XTz7mWezZUM/MVsihAg2vz5+21aHG7TmeOyPCH6lJ7DJ0pZYFVCJUAr/fNLne6OKPSWFq4LDQHI08mDZZagQFMoODz41hq91y39ThD1qx0dGODh0BFUu/T9uufyPjsccH78knQtePYRl/SaGuYZ6EgmDRBYq5Qp7DxwhV/JxtInjeRhCYBoSw5Bh2IlY0VNCzFBzDAFFHx6d0jwwGcSirY/JZa1YutSz1fKIPn3A4xsjPhNh0ceabbNSINUe6MlDk62rd2G3Std1ObRvH0cODaGVr5DyWu757IFTC6b7vqx47pu6sexXNVRpUwjQilw2i6sljjIZzpYYz5cplFxcT02LfUPKMExfrKgMroFV8uEXk4rdBc2aaGBbrTTkU57m7iGfzx7yGK5qLBkCdByWXErB+GSF/SPNq3cihMj3fcZGRtj/9NMUJieD9Aqlfk45fz33fVmdWjABPO/Nw2j1+4gGE4WClvFMTU4SiUaJJRI4jsdUyWU8X2EkV2J0ssxkoUrF8fGVRkqJKcVRuFYQqlFHc19O4WnBlrhctlpxc6XRQ5OKT+zz+EVeTT/L8Ry+0jx+MBv0M24w+ltKCULgVKuMjYxwYO9esmNjQVluKcO2mO7NfOR3v3+8bdLjN66+46tY9kV4TUR8aI00DLadfjrpOSXGAidC4EkQQmCZknjUJJOI0JWIkIxZmGZgrqkVsLc0gedrR1LwW+tNtoVJi3oZFrTgab50xOcHY0ENQWMVBLhLKTgwPMWew5N1SaVaLpPWGtd1KUxNkZvIMpWfxHfdUDcVMw/XEko9g5sv33283uPxL2zwgosFUryJJrpoBLUjFIWpKTLd3ZimOUt41RZEiOBUrDgek4Uqo5NlxibLlKsehhRELAMpBcvJlAg39bgDP8sqlA6ygE3RvtcXBOn6/7rP46FJhSFZtoL4jSoSlarPE4dyqAUix2vSpwZQtVJhMptl+PBhDh86xMToKJVSKXA0hVJqepg2+P63ufmym4/n+zSP/0x7X8NTw0g52CxQTqXCgb172XbaaYsu6EzbqVz1KFUKHB4vkklEWNeXoDcVne43tWwTLgIX9BcOezyc93n9OpMzk81LqdqWmnA1Xzni85MJH1+zbE3DmgNdsG8kj+P6s6TSXOlTLpaYmspTmJqiUi6jaoUja1JoMdVQsOv4v8/VMK7e9XHs6DsXjIioZyjFuk2bWLNuXcMVZVXoou1Jx9i6Jk0iZrUtwHax4ekArgu7DV4zYLAmOruhaD0LV/bhxxM+3xrxGXcCB8NqSluUMkg7/+XeiVnaglKKaqVCYSpPfjJPqVgM0su1Xhqc2X8AfP8Ihj6PD18+djzfq7k6ji5xG577e7SSbScER4aGSKbTJJPJhoCquWjHJ8vki1W2rs2wpicB6GVV/UwRQPOjcZ8HJ32e02Xwwl7JxrhcciKyblD4/ofjPkNljSFWlzSqCRTH9Xn6cB4RFj+pVipM5nJM5nKUisXGpM+8i2eBrz7Phy8bO97vd3XAVMrfQzx1H4Z1Ib7X9Mopz+Pgvn2cduaZTaU5SynwfM0TB7MUyy5b12ZCW2r5iBIEEFQVfG8sCBLdHJOcmQriBbvtILTJ14Gbe6isebygeLKgyYX3RdYqg2jmu9s7PEWp6lIqFBgfGSE/OXm0wYOUwUcrs+e5Huh/Xx3vdrWMa+54F6b9saa8enPUvbUbN7J2/fqG1b2Zw1eavkyU0zd0Y5vGinj8aupdLV6wJm0MEfy/q4NAU0JnhlzFZSgMQ3J4vMgDjx5g5PAQ+Xx+OoC5bRX7g9Jd/03X469YyVSLBQ/j1XOIGZ/FrR5qubu7lAwfPkyxUGi6Ty4EbUnGJys8snc8KC8lVmbnCo4G3Bqhs6IaRmoLAilkydUNkmkYjGaLfP+eh3jq8cfI53JHJVE751EDiI+uBpBWF0w3XjyB4ONh17bWhJPncejAgZbVMykF+aLDw3vHKVVXDqi5cJ1ItZAs0+DwaJb/+uZPGD40FOx3uQzbzDDBcx5GGl9cNc6W1XWkVT+GWz3SDulUmJxkdHg4uDlvEahi2eWRvWNBWrU4SUp8LYOzwTIN9uw/wpe+/mPyuTwYxvL+QcEN3HhxuQPTfOOG3z2C5sPtkE417165WGxJ3asBVap6PLJ3nKmy07a0geXaY1IEYVPHfAgRtmARbdW2gvmQ3PfwU3zlW/dQLlfAWMatZVjgOf+D33Xn6nK3rLbx7ruSWN6PMe3z8FtMlFSKZCbDjjPOaMujKa2JWAZnb+4lnbBX5C6qrgM6JMP3FVVXUXV9XC+ISdRaB9EFYWS9aQosQ05H2cu5YNXCsGDea4GwOd/0Bbjva3JFhwcefpJHf7l7drLTsr1h6aPci9h5+bc6MC01rrrjlZjGV9HKavmip03evZlA2abBWZt66E5F8I8TUDLMm3Bcn8miQ3aqwlTJoeL6+L6ejkucDzwpBaaUWKbEtgwilkHMNojYJrYlsQwD0zhWiukwjtH1FOWqx2SpymTB4el9Bzm0d9/ygwRgRcEp/T9uOj45SyceTABX3f5/iMT+sqWoiBkbb/sZZzTVb3deJ5LWmIbk9A3d9HXFVkxCCUBIgVKafNFhJFciO1Wl4nphQG+wmUVd7yEQQ3raKxb8ASkERqgW1lJYalqt0oH0c32F7wcSb2x0hIM1kJbdprbBc36Ojr6cm96YW21bdvV28LrgNT9EGmdjx84+popRE5u/WCjQ1d2NYbZujwXhMDCeL2NISSYRWdbNVGvw5fmKkWyZPYcnOTA6xVTJCdJLpiVI/cklswOBj34chUbj+YG66Lj+tOro+QF5hiHJjo9zYO9ejpK8nDvVAuUdQYk3cvNb9q9Ke3VVu4iu/FQaw7oTK/Ja3ErL6l6qq4ttp52GlLItUQ06POLX9ibZujaNKWVbL3drnsOy4zGSLTGcLVGuetMS5Lh5raQkl82y98knA0m/IiD5IwjvzXz48h+u1u26untL3nt3lWdd/AWEvwHTumBBq7jOo9gpl3Fcl0xXV8sevmm1SwR3UfmiQyJqEYu0JvlqUghgquSybzjPnsN5JvKVMMlRtOXZWwEpPzm5QiAJsCLge4/hO29h52/fs5q364lyaSK4Zte7Ecb/wrQG8FzQTdo+StE7MMDGLVumw//b5ekzpWRdX5J1fQkillF3oZeZ6SGO65OdqjKSLTFZqk7bJmJVJPhJClNT7Nm9G6+WoLdc29K0wPc0Wt0O3p+y822HV/8mPZHGNbdvQxh/DOISTKsXpUD5jYOlFJmeHjZt3YplWW1xStTUPq000YjJYHec/kyMeMQMU65nTvrRvCqtA4Cmyg7jk2WyUxXKjjdLzVsNQ0pJsVhkzxNPBKkS7X42IYKOIoYBrqMQ4rvg38CNl33tRNmeJ+Z1/vs+vRllvhHE69H6WRhGGmmEueoq/ByWBl5IMihFLJFgw+bNpNJptNZtkVJCiGkPmWlKEhGTeMTANkBohVI+vq8olSsUSlWKFZeKq1AYWJZFJBrBNK0gWp2gJ+uqAKlQ4Ondu3Gq1RbCg8SMiypZuzMKJstzPITYDXwDoe/iw5f+hBOsK/eJHxvzvs9uxvOeieRZaM5B6C1oBtA6A8SQhnl04WZEuQmmu3D09vczMDhINBoBrdFKoWtQLgLNzM8Avu/jeR5OtUqlXKYcflQrVXzPQyv/6GvW3Om1zRXaQqZlEYlGSSaTJNNp4onEdDq+Og5g1VS7p598MpRIsuajPzqfQsyBZdo7E/47bOimfA2iDBTQTIA+iJCPIfTPEfp+tPnYagoPOvVgmjuuu06S25JGyzRYXaDTGEYapVNIEcfXCQQJNEkMEvg6hfYzph3JdPf19Wa6unqisVi3IWVG2lGBlAitQflo5U9LMN/zcGeAUymXqVQqOI4T5OvM3PgzC38sqSvOkKZCYEejpFIpurq7SaRSmKbZNilaD0iTuRz79u7D80NnQ9AKqAg6B2QRcgytJkHkkORRugiiALoIFBG6BLKAEHm0msIXWTDycDjPLVdXT6at14nanDsfr/5gvOelz+zq7xtY6yq1w3MrF1TK5ed5rneBj+jxfB+/WsZzXXzfD9SwGZu/bmjqNsT0dCp3JBol091NV0838Xhi2sXfbrCEEGCYjI6OMbTnSUcp9ShC/gzUzxD6UTQH0M4EXVsKXP9yr7NtOjA1Nt7+0fWk4i/FMN+KlK/CtOP4XvNexRbAElISTyTp7u0h09WFHY0ioHWwhEBaNk6lwsjQ0M9HDg3dheC/qEw9yq1XuJ1N0IGp/eOqO89FyisQ6m0YVgbfhZWudR6CZVgWqXSa7p4ekuk0lmWF364fLCEEwrRRvodbrXxndGTkppGPf+7rPHlLtbPYHZhWZrz39jMxzT8F/TYM02w5yr1FNdCybVLpNOlMhngyiW3bs/K5ZsFVCz0SEldp3HLpf1zf/bunrnjmF2mmE1pndGBqy7j2zpeD+BsM8wUrrvot4LwwLItoNEYsEScaixGxbQzTnO5u73k+VV9RnsqPOOXyP0x981sf5Z4by53F7MB0/Mc7/i1Kd/S9CPnnGGZ3y4Vh2gHWzM/h1YAQAi0Mgrsd97MUS3/GJ/7gyc4CdmBahfbUbediRG7AMF+DmuMiXw3DtMFzD6HUB7j5sk93Fqx9w+hMQZvHT+8e4TXn3EmlJwvieZhWrKGWOcs1pBF8KO8zGN6l7Lz8B53F6kimE0hK7TofQ34Yw3rlcbWlzAj43hDa+3N2XvbJzsJ0YDoxx1vustngXw3GX2AYmRW1paQRhP34/ueCyOvL93QWpAPTiT/ee9sFWJF/wDBeMx3tvmyrKkLbyNuPUn/FTZfc1lmADkwnm5Qy2OD/Dsi/wrQ2t5SXtZiDwfcdUP8K8m+48eJDnYnvwHTyjms+tRbs9yHEOzHNTOtQCTDN0HOov4FSf8POSzsOhg5Mp5Lqd/uZmMZVSN6KYfeg/DDZsc7QJGkEZYJdRyH4HkLfyIcv+S8QujO5HZhOUaju2orNW9H6LWh9PpZtzkp0nGkL1fKIglSIg0i+ijI+xc63/JATLJmuA1NnLN9418cs4pnz0OpFIJ+DYDvoXrSOIvBA5IEDIH4O+kcI42fcePFEZ+I6MHVGPeO6L8bJ+Ta28Ik/UOb66zv5Q6t0/P+vzzN54M9TEQAAAABJRU5ErkJggg==" alt="Logo ISFDyT N.º 9-030 «Del Bicentenario»">
+    <div class="inst"><b>ISFDyT N.º 9-030 «Del Bicentenario»</b><span>Profesorado de Educación Secundaria en Historia · Godoy Cruz, Mendoza</span></div>
+    <div class="evento">Pre-Congreso Tarpuy 2026–2027<span>Experiencias poderosas</span></div>
+  </header>
+
+  <!-- Vista circular -->
+  <div id="world">
+    <svg class="mapa" viewBox="0 0 1920 1080" aria-hidden="true">
+      <circle class="ripple" cx="990" cy="590" r="200"/>
+      <circle class="ripple r2" cx="990" cy="590" r="200"/>
+      <circle class="ripple r3" cx="990" cy="590" r="200"/>
+      <circle class="ring" cx="990" cy="590" r="230" stroke="#2f5d9a" stroke-width="3"/>
+      <circle class="ring" cx="990" cy="590" r="340" stroke="#3f6fae" stroke-width="2" opacity=".6"/>
+      <path class="ring" d="M 1334.7 300.7 A 450 450 0 1 1 911.9 146.8" stroke="#b8924a" stroke-width="3" stroke-dasharray="4 14" stroke-linecap="round"/>
+    </svg>
+
+    <button class="nodo n1" style="left:990px;top:590px" data-ir="1" aria-label="Estación 1: punto de partida y contexto">
+      <span class="num">1</span><span class="lab">Punto de<br>partida</span>
+    </button>
+    <button class="nodo sat n2" style="left:760px;top:590px" data-ir="2" aria-label="Estación 2: la tensión">2</button>
+    <button class="nodo sat n3" style="left:1220px;top:590px" data-ir="3" aria-label="Estación 3: las decisiones">3</button>
+    <button class="nodo sat n4" style="left:846px;top:898px" data-ir="4" aria-label="Estación 4: las huellas">4</button>
+    <button class="nodo sat n5" style="left:1335px;top:301px" data-ir="5" aria-label="Estación 5: lo que queda abierto">5</button>
+
+    <div class="etq" style="left:690px;top:665px">La tensión</div>
+    <div class="etq" style="left:1150px;top:665px">Las decisiones</div>
+    <div class="etq" style="left:930px;top:880px">Las huellas</div>
+    <div class="etq" style="left:1412px;top:286px">Lo que queda abierto</div>
+  </div>
+
+  <!-- Portada -->
+  <div id="portada-izq">
+    <div class="kick">Didáctica de la Historia II · PPD III</div>
+    <h1>Trayectorias reales, recorridos posibles</h1>
+    <p>Abrir recorridos para construir el oficio de enseñar.</p>
+    <div class="autoras">Prof. Cintia Colombo · Prof. Amabilia Ruiti<span>3.er año</span></div>
+  </div>
+  <div id="portada-der">
+    <div class="kicker">Recorrido de la presentación</div>
+    <ol>
+      <li data-ir="1"><b>1</b>Punto de partida y contexto</li>
+      <li data-ir="2"><b>2</b>La tensión</li>
+      <li data-ir="3"><b>3</b>Las decisiones</li>
+      <li data-ir="4"><b>4</b>Las huellas</li>
+      <li data-ir="5"><b>5</b>Lo que queda abierto</li>
+    </ol>
+  </div>
+
+  <!-- Cierre -->
+  <div id="cierre">
+    <div class="kick">Pre-Congreso Tarpuy 2026–2027</div>
+    <h1>Preguntas e intercambio</h1>
+    <p>Gracias por recorrer estas ondas con nosotras.</p>
+    <div class="contacto"><span>Contacto</span><b>Prof. Cintia Colombo</b><br>cintigcolombo@gmail.com<br><b style="display:inline-block;margin-top:10px">Prof. Amabilia Ruiti</b><br>aruiti@mendoza.edu.ar</div>
+  </div>
+
+  <!-- Estaciones -->
+  <div id="panel">
+
+    <section class="est" data-est="1">
+      <div class="izq">
+        <div class="numero">1</div>
+        <div class="kicker">Punto de partida y contexto</div>
+        <p class="tesis">Diez años de prácticas nos enseñaron a pensar en trayectorias reales: <em>tiempos personales atravesados por la vida adulta.</em></p>
+        <div class="ondas-izq" data-n="1"></div>
+        <p class="pie frag">Cuestionamos nuestra propia propuesta de trabajo, que ofrecía un único trayecto de acreditación común.</p>
+      </div>
+      <div class="der">
+        <div class="bloque frag"><h3>Dónde</h3><p>Profesorado de Historia, 3.er año. Didáctica de la Historia II y PPD III, cursadas como un módulo-taller anual a cargo de una cátedra compartida.</p></div>
+        <div class="bloque frag"><h3>La práctica</h3><p>Un escenario de clase real y contextualizado. Leer en detalle la realidad de las escuelas asociadas desarma preconceptos sobre la clase de Historia en la secundaria mendocina.</p></div>
+        <div class="bloque frag"><h3>Trayectorias reales</h3><p>No solo se trata de madurar el conocimiento teórico. Los trabajos formales e informales y el sostenimiento y acompañamiento de familiares configuran un escenario complejo, que hay que conocer para tomar decisiones situadas.</p></div>
+      </div>
+    </section>
+
+    <section class="est" data-est="2">
+      <div class="izq">
+        <div class="numero">2</div>
+        <div class="kicker">El desafío o tensión</div>
+        <p class="tesis">El espacio pensado para aprender a enseñar dejaba afuera a quienes <em>más necesitaban una práctica acompañada.</em></p>
+        <div class="ondas-izq" data-n="2"></div>
+      </div>
+      <div class="der">
+        <div class="bloque diag frag"><h3>Lo que mostró el diagnóstico</h3>
+          <p><span class="letra">a</span>Un trayecto único, que supone que todas y todos construyen su configuración didáctica al mismo tiempo y del mismo modo.</p>
+          <p><span class="letra">b</span>Otros modos de intervenir (actos escolares, clases simuladas) mezclados en una lista optativa.</p>
+          <p><span class="letra">c</span>Ningún momento explícito para decidir sobre cada trayectoria.</p>
+          <p><span class="letra">d</span>Una evaluación atada solo a la intervención en territorio.</p>
+        </div>
+        <div class="bloque azul frag"><h3>Nos preguntamos</h3><p>¿Dónde se reconoce que alguien está construyendo el oficio de enseñar Historia: en el escenario donde enseña, o en cómo trata el contenido y reflexiona sobre sus decisiones?</p></div>
+      </div>
+    </section>
+
+    <section class="est" data-est="3">
+      <div class="izq">
+        <div class="numero">3</div>
+        <div class="kicker">Las intervenciones y decisiones</div>
+        <p class="tesis">Redefinimos el territorio: <em>es el escenario de intervención de cada recorrido.</em></p>
+        <div class="ondas-izq" data-n="3"></div>
+        <p class="pie frag">Nuestras intervenciones y decisiones para el ciclo lectivo 2026-2027.</p>
+      </div>
+      <div class="der">
+        <div class="bloque frag"><h3>El año, por etapas</h3>
+          <div class="tiempo">
+            <div>Núcleo común<span>mar–jun</span></div>
+            <div class="clave">Punto de Encuentro<span>julio</span></div>
+            <div>Preparación<span>agosto</span></div>
+            <div>Territorio<span>sep–nov</span></div>
+            <div>Coloquio<span>diciembre</span></div>
+          </div>
+        </div>
+        <div class="bloque frag"><h3>Punto de Encuentro · autoevaluación acompañada</h3>
+          <div class="pasos">Yo me miro <i>→</i> Nos miramos <i>→</i> Acordamos <i>·</i> <small>la decisión puede revisarse</small></div>
+        </div>
+        <div class="frag">
+          <div class="titulo-rec">Se habilitan tres recorridos de aprendizaje</div>
+          <div class="fila c3">
+            <div class="rec"><h4>Directo a territorio</h4><p>Configuración didáctica implementada en el aula de la escuela asociada.</p></div>
+            <div class="rec r2"><h4>Preparatorio</h4><p>Microenseñanza, ensayos y parejas pedagógicas; ingreso gradual al aula.</p></div>
+            <div class="rec r3"><h4>Sustitutivo</h4><p>Mediación en escenarios no áulicos: museo, archivo, educación de adultos.</p><button class="abrir-exp" id="abrirExp">+ Convenio con el Museo del Pasado Cuyano</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="expansion" id="expansion" aria-hidden="true">
+        <button class="cerrar-exp" id="cerrarExp" aria-label="Cerrar">×</button>
+        <div class="exp-kicker">Recorrido sustitutivo · escenario no áulico</div>
+        <h2>Convenio con el Museo del Pasado Cuyano</h2>
+        <p class="exp-intro">Un acervo para enseñar la historia regional desde sus objetos, documentos y espacios.</p>
+        <div class="exp-sub">¿Qué hacen nuestras y nuestros estudiantes en el Museo?</div>
+        <div class="fila c2 exp-acciones">
+          <div><svg class="ico"><use href="#i-mediar"/></svg><span><b>Mediar visitas</b>Diseñar y conducir recorridos para grupos escolares.</span></div>
+          <div><svg class="ico"><use href="#i-fuentes"/></svg><span><b>Trabajar con fuentes</b>Analizar objetos y documentos del acervo como fuentes históricas.</span></div>
+          <div><svg class="ico"><use href="#i-materiales"/></svg><span><b>Producir materiales</b>Elaborar guías y recursos didácticos para docentes y escuelas.</span></div>
+          <div><svg class="ico"><use href="#i-reflexion"/></svg><span><b>Reflexionar la práctica</b>Registrar y analizar la experiencia con acompañamiento de la cátedra.</span></div>
+        </div>
+        <div class="fila c2 exp-reciproco">
+          <div><h3>Para el Museo</h3><ul><li>Propuestas de visita para escuelas secundarias.</li><li>Materiales didácticos sobre el acervo.</li><li>Futuras y futuros docentes que volverán con sus cursos.</li></ul></div>
+          <div><h3>Para el Instituto</h3><ul><li>Un escenario formal y acompañado de práctica.</li><li>Contacto directo con patrimonio y fuentes.</li><li>Formación en guion museológico y su adaptación al sistema educativo.</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="est" data-est="4">
+      <div class="izq">
+        <div class="numero">4</div>
+        <div class="kicker">La potencia transformadora</div>
+        <p class="tesis">Acompañar las decisiones <em>para que cada trayectoria encuentre su recorrido.</em></p>
+        <div class="ondas-izq" data-n="4"></div>
+        <p class="pie frag">Una práctica acompañada es una práctica posible.</p>
+      </div>
+      <div class="der">
+        <div class="fila c3 frag">
+          <div class="rec"><h4><svg class="ico"><use href="#i-inclusion"/></svg>Inclusión</h4><p>Nadie pierde la práctica situada por no llegar al aula en las condiciones o los tiempos previstos.</p></div>
+          <div class="rec r2"><h4><svg class="ico"><use href="#i-calidad"/></svg>Calidad</h4><p>Mismo núcleo y mismos criterios en los tres recorridos: cambian el escenario y la evidencia.</p></div>
+          <div class="rec r3"><h4><svg class="ico"><use href="#i-institucion"/></svg>Fortalecimiento institucional</h4><p>Programa reescrito, un dispositivo para orientar trayectorias y vínculos con el territorio.</p></div>
+        </div>
+        <div class="bloque huellas frag"><h3>Huellas de proceso</h3>
+          <p class="intro-huellas">Esta es una experiencia en curso…</p>
+          <ul>
+            <li><b>En las trayectorias:</b> la condición del estudiante ya no se define al final del año; hoy se decide de forma temprana, fundamentada, compartida y revisable, en conjunto, en el Punto de Encuentro.</li>
+            <li><b>En el trabajo docente:</b> un trabajo aún más entramado entre la Didáctica y la Práctica. Coloquios, bitácoras de cierre y rúbricas de evaluación integradas.</li>
+            <li><b>En la dinámica institucional:</b> estamos consolidando los convenios que sostienen el recorrido que integra museos, archivos y educación patrimonial como escenarios de enseñanza.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="est" data-est="5">
+      <div class="izq">
+        <div class="numero">5</div>
+        <div class="kicker">Aprendizajes y proyección</div>
+        <p class="tesis">Proponemos debatir <em>el derecho a la práctica situada</em> en la formación docente.</p>
+        <div class="ondas-izq" data-n="5"></div>
+        <p class="pie frag">Hacia Tarpuy 2027: marcos de Práctica Profesional que diversifiquen los escenarios sin resignar criterios comunes de exigencia.</p>
+      </div>
+      <div class="der">
+        <div class="fila c2 frag">
+          <div class="bloque"><h3>Aprendimos</h3><ul>
+            <li>Diagnosticar antes de diseñar.</li>
+            <li>Sin un momento de decisión, lo alternativo se lee como salida de emergencia.</li>
+            <li>Nombrar los recorridos como equivalentes es una decisión pedagógica.</li>
+          </ul></div>
+          <div class="bloque"><h3>Buscamos institucionalizar</h3><ul>
+            <li>El Punto de Encuentro.</li>
+            <li>La rúbrica común.</li>
+            <li>El programa con recorridos.</li>
+            <li>Los convenios con instituciones del territorio.</li>
+          </ul></div>
+        </div>
+        <div class="bloque azul frag"><h3>Queda abierto</h3><p>¿Pueden reconocerse otros espacios culturales y educativos como ámbitos legítimos de práctica docente? ¿Cómo sostener el acompañamiento de trayectorias diversas con la misma carga horaria docente?</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Navegación -->
+  <div id="nav">
+    <svg id="mini" viewBox="0 0 120 120" aria-label="Volver a la vista circular" role="button"></svg>
+    <div id="puntos"></div>
+    <span class="ayuda"><kbd>→</kbd> avanzar · <kbd>←</kbd> volver · <kbd>Esc</kbd> vista circular · <kbd>N</kbd> notas · <kbd>F</kbd> pantalla completa</span>
+    <div class="flechas"><button id="prev" aria-label="Anterior">←</button><button id="next" aria-label="Siguiente">→</button></div>
+  </div>
+
+</div>
+
+<script>
+/* ===== Notas para quien presenta (tecla N) ===== */
+const NOTAS = {
+  0: "Vista circular. Presentar la experiencia y la lógica del diseño: en el centro, el punto de partida; desde ahí, como ondas, la tensión y las decisiones, las huellas y lo que queda abierto. El último anillo está abierto a propósito.",
+  1: "Nivel Superior. ISFDyT N.º 9-030 «Del Bicentenario», Godoy Cruz. 3.er año del Profesorado de Historia: trayecto conjunto de Didáctica de la Historia II y PPD III, módulo-taller anual de régimen bimodal, en el marco de la Res. DGE 2791/19. Cátedra compartida: Prof. Cintia Colombo y Prof. Amabilia Ruiti.\n\nLa práctica es un escenario de clase real y contextualizado: exige una lectura detallada de la realidad de las escuelas asociadas, que permite dejar de lado ideas o preconceptos sobre lo que ocurre en las clases de Historia en las secundarias de Mendoza.\n\nEn 10 años como docentes de prácticas advertimos la necesidad de pensar en trayectorias reales: las que acompañan tiempos personales, que no están atravesados solo por madurar el conocimiento teórico, sino por situaciones de la vida adulta (trabajos formales e informales, sostenimiento y acompañamiento de familiares). Es un escenario complejo cuyas aristas hay que conocer para tomar decisiones situadas.\n\nCuestionamos nuestra propia propuesta de trabajo: ofrecía un único trayecto de acreditación común, con un mismo tiempo y un mismo escenario para todas y todos (mínimo de 18 horas de clase, de septiembre a noviembre), sin un plan pedagógico alternativo. Quien no cumplía los requisitos pasaba a ser estudiante no regular y perdía la práctica situada.",
+  2: "El diseño de la práctica suponía trayectorias homogéneas. Diagnóstico de cuatro problemas: (a) un trayecto único que supone que todas y todos construyen su configuración didáctica al mismo tiempo y del mismo modo, cuando el oficio de enseñar se construye de manera singular, situada y reflexiva; (b) otros modos de intervención mezclados en una lista optativa; (c) ningún momento explícito de decisión; (d) una evaluación dependiente del territorio.\n\nPreguntas: ¿cómo garantizar que todas y todos construyan y pongan en juego su configuración didáctica en una práctica situada, sin resignar el sentido de la buena enseñanza y dentro del margen normativo?\n\nHipótesis (Litwin): la configuración didáctica es la manera particular en que cada docente organiza la enseñanza para favorecer la comprensión. Lo que define la buena enseñanza, en su doble sentido moral y epistemológico, es el tratamiento cognitivo del contenido y la reflexión sobre las propias decisiones, no el escenario.",
+  3: "Partimos del diagnóstico de la propuesta vigente, tras 2 años de trabajo conjunto, y diseñamos una mejora desde el contexto.\n\nNúcleo formativo común (mar–jun): configuraciones didácticas, observación de instituciones de distintos niveles y modalidades, talleres, bitácora y guiones.\n\nPunto de Encuentro: momento de reflexión y autoevaluación, con ficha en tres momentos (autoevaluación, valoración docente, encuentro de acuerdo). Evita tanto la imposición docente como la autoselección sin acompañamiento. La decisión puede revisarse.\n\nTres recorridos con igual valor formativo. Una rúbrica de cinco criterios comunes: solo varía la evidencia. Evaluación formativa y coloquio integrador.\n\nReorganizaciones: tiempos por etapas. Espacios: el territorio deja de ser solo el aula y pasa a ser el escenario de cada recorrido; el Instituto funciona como espacio de simulación y microenseñanza. Roles: las docentes acompañan; las y los estudiantes participan en la decisión. Programa reescrito dentro de las 192 horas de la PPD III.",
+  '3b': "Expansión del recorrido sustitutivo. El convenio con el Museo del Pasado Cuyano ofrece un escenario formal y acompañado de práctica no áulica, análogo a la escuela asociada. Un acervo para enseñar la historia regional desde sus objetos, documentos y espacios.\n\nQué hacen las y los estudiantes: mediar visitas (diseñar y conducir recorridos para grupos escolares), trabajar con fuentes (objetos y documentos del acervo), producir materiales (guías y recursos para docentes y escuelas) y reflexionar la práctica con acompañamiento de la cátedra.\n\nEs un vínculo recíproco: el Museo recibe propuestas de visita, materiales y futuros docentes que volverán con sus cursos; el Instituto gana un escenario de práctica, contacto con patrimonio y fuentes, y formación en guion museológico.",
+  4: "Desarma una estructura rígida: la idea de que práctica es igual a aula y un trayecto único que funcionaba como filtro. Parte de un problema real y se cuenta en tiempo presente.\n\nDiscute qué entendemos por territorio: si la práctica situada es mediación del saber histórico para sujetos concretos, otros escenarios no son de segunda.\n\nAcompañar las decisiones para que cada trayectoria encuentre su recorrido. Inclusión, calidad y fortalecimiento institucional.\n\nEs una experiencia en curso. En las trayectorias: la decisión se toma de forma temprana, fundamentada, compartida y revisable en el Punto de Encuentro. En el trabajo docente: un trabajo más entramado entre la Didáctica y la Práctica (coloquios, bitácoras de cierre, rúbricas integradas). En la dinámica institucional: estamos consolidando los convenios que sostienen el recorrido que integra museos, archivos y educación patrimonial como escenarios de enseñanza.\n\nPie: una práctica acompañada es una práctica posible.",
+  5: "Aprendizajes: diagnosticar antes de diseñar evita multiplicar excepciones; sin un momento de decisión, lo alternativo se lee como salida de emergencia; el lenguaje es parte del dispositivo.\n\nDificultades: reordenar formatos que estaban mezclados en la lista optativa y sostener la coherencia entre programa, cronograma e instrumentos.\n\nPreguntas abiertas: el reconocimiento institucional de espacios no áulicos como ámbitos legítimos de práctica docente; el acompañamiento de trayectorias diversificadas con la misma carga horaria docente.\n\nAporte al Congreso 2027: el derecho a la práctica situada en la formación docente."
+};
+NOTAS[0] = "Vista circular. Al inicio: presentar la experiencia y la lógica del diseño (en el centro, el punto de partida; desde ahí, como ondas, la tensión y las decisiones, las huellas y lo que queda abierto). Entre estación y estación volvemos aquí: las ondas ya recorridas se encienden y la próxima late.";
+NOTAS[6] = "Cierre. Vuelve la vista circular con todas las ondas encendidas. Abrir el espacio de preguntas e intercambio.";
+
+/* ===== Escala del escenario 1920×1080 ===== */
+const stage = document.getElementById('stage');
+function ajustar(){
+  const s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+  stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+window.addEventListener('resize', ajustar); ajustar();
+
+/* ===== Ondas en miniatura (navegación y columna izquierda) ===== */
+const COLOR = {1:'#14284b',2:'#2f5d9a',3:'#2f5d9a',4:'#3f6fae',5:'#b8924a'};
+function ondasSVG(activo){
+  const p = {1:[60,60,12],2:[32,60,7],3:[88,60,7],4:[46,94,7],5:[96,30,7]};
+  const anillo = {1:0,2:28,3:28,4:40,5:52};
+  let g = '';
+  [[28,'#2f5d9a',2,''],[40,'#3f6fae',1.6,''],[52,'#b8924a',2,'2 5']].forEach(([r,c,w,d])=>{
+    const on = anillo[activo]===r;
+    g += `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${c}" stroke-width="${on? w+2 : w}" stroke-dasharray="${d}" opacity="${on? 1 : .35}"/>`;
+  });
+  for(const k in p){
+    const [x,y,r]=p[k]; const on = +k===activo;
+    g += `<circle cx="${x}" cy="${y}" r="${on? r+3 : r}" fill="${on? COLOR[k] : '#c9cdd6'}"/>`;
+  }
+  return g;
+}
+document.querySelectorAll('.ondas-izq').forEach(d=>{
+  d.innerHTML = `<svg viewBox="0 0 120 120" aria-hidden="true">${ondasSVG(+d.dataset.n)}</svg>`;
+});
+const mini = document.getElementById('mini');
+
+/* ===== Navegación ===== */
+const POS = {1:[990,590],2:[760,590],3:[1220,590],4:[846,898],5:[1335,301]};
+const ZOOM = 2.6, TOTAL = 7;          // 0 portada · 1–5 estaciones · 6 cierre
+var actual = 0, paso = 0, expandido = false, notasWin = null, inicio = null;
+var ultimo = 0;                 // última estación trabajada
+const visitadas = new Set();   // estaciones ya recorridas (se encienden en el círculo)
+const world = document.getElementById('world');
+const puntos = document.getElementById('puntos');
+for(let i=1;i<=5;i++){
+  const b=document.createElement('button'); b.textContent=i; b.setAttribute('aria-label','Estación '+i);
+  b.onclick=()=>ir(i,'completo'); puntos.appendChild(b);
+}
+const frags = n => [...document.querySelectorAll(`.est[data-est="${n}"] .der .frag`), ...document.querySelectorAll(`.est[data-est="${n}"] .izq .frag`)];
+function mostrarPasos(n,k){ frags(n).forEach((f,i)=>f.classList.toggle('visible', i<k)); paso=k; actualizarNotas(); }
+function expansion(abrir){
+  expandido = abrir;
+  const e=document.getElementById('expansion');
+  e.classList.toggle('abierta', abrir); e.setAttribute('aria-hidden', abrir?'false':'true');
+  actualizarNotas();
+}
+
+function ir(n, modo){
+  if(expandido){ expandido=false; document.getElementById('expansion').classList.remove('abierta'); }
+  actual = (n+TOTAL)%TOTAL;
+  const enEst = actual>=1 && actual<=5;
+  document.body.classList.toggle('en-estacion', enEst);
+  document.body.classList.toggle('cierre', actual===6);
+  if(enEst){
+    const [x,y]=POS[actual];
+    world.style.transform = `translate(${960 - x*ZOOM}px, ${590 - y*ZOOM}px) scale(${ZOOM})`;
+    world.style.opacity = .15;
+    mostrarPasos(actual, frags(actual).length);   // todo el contenido aparece junto
+  }else{
+    world.style.transform = 'translate(0px,0px) scale(1)';
+    world.style.opacity = 1;
+  }
+  if(enEst){ ultimo = actual; visitadas.add(actual); }
+  marcarCirculo();
+  document.querySelectorAll('.est').forEach(e=>e.classList.toggle('activa', +e.dataset.est===actual));
+  [...puntos.children].forEach((b,i)=>b.classList.toggle('on', i+1===actual));
+  mini.innerHTML = ondasSVG(actual);
+  actualizarNotas();
+}
+/* Navegación en estrella: después de cada estación se vuelve al círculo concéntrico.
+   portada → 1 → círculo → 2 → círculo → 3 (+convenio) → círculo → 4 → círculo → 5 → círculo → cierre */
+function proxima(){ return ultimo < 5 ? ultimo + 1 : 6; }
+function marcarCirculo(){
+  document.querySelectorAll('.nodo').forEach(nd=>{
+    const k = +nd.dataset.ir;
+    nd.classList.toggle('visto', visitadas.has(k));
+    nd.classList.toggle('siguiente', actual===0 && k===proxima());
+  });
+}
+function avanzar(){
+  if(actual>=1 && actual<=5){
+    if(actual===3 && !expandido){ expansion(true); return; }
+    ir(0); return;                      // volver al círculo
+  }
+  if(actual===0){ ir(proxima(),'inicio'); return; }
+  // en el cierre no se avanza más
+}
+function retroceder(){
+  if(expandido){ expansion(false); return; }
+  if(actual>=1 && actual<=5){ const n=actual; ir(0); ultimo = n-1; marcarCirculo(); actualizarNotas(); return; }
+  if(actual===6){ ir(0); return; }
+  if(actual===0 && ultimo>=1){ ir(ultimo,'completo'); }
+}
+function reiniciar(){ visitadas.clear(); ultimo = 0; ir(0); }
+
+document.querySelectorAll('[data-ir]').forEach(el=>el.addEventListener('click',()=>ir(+el.dataset.ir,'completo')));
+mini.addEventListener('click',()=>ir(0));
+document.getElementById('prev').onclick=retroceder;
+document.getElementById('next').onclick=avanzar;
+document.getElementById('abrirExp').onclick=()=>expansion(true);
+document.getElementById('cerrarExp').onclick=()=>expansion(false);
+
+document.addEventListener('keydown',e=>{
+  const k=e.key;
+  if(['ArrowRight','PageDown',' ','Enter'].includes(k)){e.preventDefault();avanzar();}
+  else if(['ArrowLeft','PageUp','Backspace'].includes(k)){e.preventDefault();retroceder();}
+  else if(k==='Escape'){ if(expandido){expansion(false);} else {ir(0);} }
+  else if(k==='o'||k==='O'||k==='0'){ir(0);}
+  else if(k==='Home'||k==='r'||k==='R'){reiniciar();}
+  else if(/^[1-5]$/.test(k)){ir(+k,'completo');}
+  else if(k==='n'||k==='N'){abrirNotas();}
+  else if(k==='f'||k==='F'){
+    if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();}
+    else{document.exitFullscreen&&document.exitFullscreen();}
+  }
+});
+
+/* ===== Ventana de notas ===== */
+const NOMBRES={0:'Vista circular',1:'1 · Punto de partida',2:'2 · La tensión',3:'3 · Las decisiones','3b':'3 · Convenio con el Museo del Pasado Cuyano',4:'4 · Las huellas',5:'5 · Lo que queda abierto',6:'Cierre · Preguntas e intercambio'};
+function abrirNotas(){
+  if(notasWin && !notasWin.closed){notasWin.focus();return;}
+  notasWin = window.open('', 'notasTarpuy', 'width=900,height=720');
+  if(!notasWin){alert('El navegador bloqueó la ventana de notas. Permití las ventanas emergentes para este archivo.');return;}
+  inicio = Date.now();
+  notasWin.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Notas · Tarpuy</title>
+  <style>body{font-family:"Segoe UI",Calibri,Arial,sans-serif;background:#14284b;color:#f4f1ea;margin:0;padding:28px 34px}
+  #top{display:flex;align-items:baseline;gap:18px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:14px}
+  #est{font-family:Georgia,serif;font-size:30px;color:#d6b46f}#reloj{margin-left:auto;font-size:34px;font-variant-numeric:tabular-nums}
+  #txt{font-size:22px;line-height:1.55;white-space:pre-wrap;margin-top:20px}
+  #sig{margin-top:24px;font-size:17px;color:#c3cbdc}button{font-size:18px;padding:8px 18px;margin-right:8px;border:0;border-radius:4px;background:#b8924a;color:#14284b;cursor:pointer;transition:transform .2s,box-shadow .2s}button:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(0,0,0,.35)}</style></head>
+  <body><div id="top"><span id="est"></span><span id="reloj">00:00</span></div>
+  <div style="margin-top:14px"><button id="a">← Anterior</button><button id="s">Siguiente →</button><button id="r">Reiniciar reloj</button></div>
+  <div id="txt"></div><div id="sig"></div></body></html>`);
+  notasWin.document.close();
+  const d = notasWin.document;
+  d.getElementById('a').onclick=retroceder;
+  d.getElementById('s').onclick=avanzar;
+  d.getElementById('r').onclick=()=>{inicio=Date.now();};
+  d.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();avanzar();}
+    if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();retroceder();}
+  });
+  actualizarNotas();
+}
+function actualizarNotas(){
+  if(!notasWin||notasWin.closed) return;
+  const d=notasWin.document;
+  const clave = (actual===3 && expandido) ? '3b' : actual;
+  d.getElementById('est').textContent=NOMBRES[clave];
+  d.getElementById('txt').textContent=NOTAS[clave];
+  let sig;
+  if(actual===3 && !expandido){ sig = NOMBRES['3b']; }
+  else if(actual>=1 && actual<=5){ sig = 'volver al círculo'; }
+  else if(actual===0){ sig = NOMBRES[proxima()]; }
+  else { sig = 'fin de la presentación'; }
+  d.getElementById('sig').textContent='Sigue: '+sig;
+}
+setInterval(()=>{
+  if(!notasWin||notasWin.closed||!inicio) return;
+  const t=Math.floor((Date.now()-inicio)/1000);
+  const r=notasWin.document.getElementById('reloj');
+  r.textContent=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+  r.style.color = t>=15*60 ? '#ff9a8a' : (t>=12*60 ? '#d6b46f' : '#f4f1ea');
+},500);
+
+ir(0);
+</script>
+</body>
+</html>
